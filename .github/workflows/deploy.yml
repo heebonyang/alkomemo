@@ -1,0 +1,49 @@
+# main 에 푸시하면 Firebase 에 자동 배포 (웹페이지 + 데이터베이스 보안 규칙)
+# 필요한 것: 저장소 Settings > Secrets and variables > Actions 에 FIREBASE_SERVICE_ACCOUNT (서비스 계정 키 JSON 전체)
+# 비밀값이 없거나 .firebaserc 가 아직 YOUR_PROJECT_ID 이면 배포를 건너뜀
+name: Deploy to Firebase
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 배포할 수 있는지 확인
+        id: check
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          PROJECT=$(node -e "console.log(require('./.firebaserc').projects.default)")
+          if [ -z "$SA" ]; then
+            echo "::notice::FIREBASE_SERVICE_ACCOUNT 비밀값이 없어서 배포를 건너뜁니다."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif [ "$PROJECT" = "YOUR_PROJECT_ID" ] || grep -q 'YOUR_API_KEY' public/config.js; then
+            echo "::notice::.firebaserc 또는 public/config.js 에 Firebase 설정이 아직 없어서 배포를 건너뜁니다."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Firebase 배포
+        if: steps.check.outputs.skip != 'true'
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project "${{ steps.check.outputs.project }}" --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"

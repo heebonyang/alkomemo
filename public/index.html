@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>알코 노트 · ALKO note</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: 56px 탭 바 / 64px 화면 머리줄이 목록과 본문을 가로질러 한 줄로 이어짐. 먹색 한 가지, 크기 6단계, 버튼·입력 한 가지씩 */
+:root {
+  --bg: #ffffff;
+  --ink: #161616;
+  --muted: #8a8a8a;
+  --faint: #f4f4f3;
+  --line: #ebebea;
+  --accent: #2b5fd9;
+  --accent-soft: #eaf0fd;
+  --on-accent: #ffffff;
+  --mine: #b8730a;
+  --mine-soft: #fbf1de;
+  --on-mine: #ffffff;
+  --danger: #c4372c;
+  --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 28px;
+  --r: 8px;
+  --h: 36px;
+  --head: 64px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --danger: #f07c72; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --danger: #f07c72; color-scheme: dark; }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: var(--fs-md); line-height: 1.6;
+  display: flex; flex-direction: column; min-height: 0; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+input, textarea { background: none; border: 0; outline: none; }
+:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+::placeholder { color: var(--muted); opacity: 1; }
+svg { display: block; }
+/* 공유 = 파랑(--accent), 내 노트 = 호박색(--mine). 요소마다 --scope 로 받아 씀 */
+:root, .scope-shared { --scope: var(--accent); --scope-soft: var(--accent-soft); --on-scope: var(--on-accent); }
+.scope-private, #app[data-scope="private"] { --scope: var(--mine); --scope-soft: var(--mine-soft); --on-scope: var(--on-mine); }
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--scope); flex: none; }
+.gutter { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+.grow { flex: 1; }
+
+/* ---------- 기본 요소: 버튼 두 가지, 입력 한 가지 ---------- */
+.btn, .btn-ink, .gbtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--h); padding: 0 14px;
+  border-radius: var(--r); background: var(--faint); font-size: var(--fs-md); font-weight: 500; white-space: nowrap; flex: none;
+}
+.btn:hover, .gbtn:hover { background: var(--line); }
+.btn-ink, .btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn-ink:hover, .btn.primary:hover { background: var(--accent); opacity: .88; }
+.btn-ink:disabled, .btn:disabled { opacity: .4; cursor: default; }
+.btn.lg, .gbtn { height: 44px; font-size: var(--fs-lg); font-weight: 600; width: 100%; }
+.btn svg, .btn-ink svg { width: 14px; height: 14px; }
+.icon-btn { width: var(--h); height: var(--h); display: grid; place-items: center; border-radius: var(--r); color: var(--muted); flex: none; }
+.icon-btn:hover { color: var(--ink); background: var(--faint); }
+.icon-btn svg { width: 18px; height: 18px; }
+.link, .done-toggle { color: var(--muted); font-size: var(--fs-sm); }
+.link:hover, .done-toggle:hover { color: var(--ink); }
+.link.danger:hover, .link.danger.armed { color: var(--danger); }
+.field, .proj-form input {
+  height: var(--h); padding: 0 12px; border-radius: var(--r); background: var(--faint); font-size: var(--fs-md); width: 100%; min-width: 0;
+}
+.field:focus, .proj-form input:focus, .search-box:focus-within { box-shadow: inset 0 0 0 1px var(--scope); }
+.field:focus-visible, .proj-form input:focus-visible { outline: none; }
+.hint { padding: 20px 0; color: var(--muted); font-size: var(--fs-sm); }
+.meta, .count { font-size: var(--fs-xs); color: var(--muted); }
+.view-title { margin: 0; font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.015em; white-space: nowrap; }
+
+/* ---------- 입장 화면 ---------- */
+.gate { flex: 1; display: grid; place-items: center; padding-block: 40px; }
+.gate-card { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 24px; }
+.wordmark { display: flex; align-items: baseline; gap: 10px; }
+.wordmark h1 { margin: 0; font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -0.02em; }
+.wordmark span { font-size: var(--fs-xs); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.gate-card p { margin: 0; color: var(--muted); }
+.gate-users { display: flex; flex-direction: column; gap: 8px; }
+.gate-msg { color: var(--danger); font-size: var(--fs-sm); }
+
+/* ---------- 탭 바 ---------- */
+#shell { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.top { display: flex; align-items: stretch; column-gap: 40px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.brand, .me { height: 56px; display: flex; align-items: center; }
+.brand { gap: 8px; font-weight: 600; font-size: var(--fs-lg); letter-spacing: -0.015em; }
+.brand small { font-weight: 400; font-size: var(--fs-xs); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.dev { font-weight: 500; font-size: var(--fs-xs); color: var(--muted); background: var(--faint); border-radius: 4px; padding: 0 6px; line-height: 20px; }
+.nb-row { flex: 1; min-width: 0; display: flex; align-items: stretch; gap: 12px; }
+.tabs { display: flex; gap: 28px; min-width: 0; }
+.tab { position: relative; display: flex; align-items: center; font-size: var(--fs-md); color: var(--muted); }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); font-weight: 600; }
+.tab { gap: 7px; }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--scope); }
+.me { gap: 16px; font-size: var(--fs-sm); color: var(--muted); }
+.me img { width: 24px; height: 24px; border-radius: 50%; }
+.banner { padding-block: 10px; font-size: var(--fs-sm); background: var(--faint); }
+
+/* ---------- 목록 ---------- */
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); }
+.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.rail-top, .view-head { height: var(--head); flex: none; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.new-note { width: var(--h); height: var(--h); flex: none; display: grid; place-items: center; border-radius: var(--r); background: var(--scope); color: var(--on-scope); }
+.new-note[aria-expanded="true"] { opacity: .88; }
+.rail-top { position: relative; }
+.menu {
+  position: fixed; z-index: 20; min-width: 240px; max-width: calc(100vw - 32px);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 28px rgb(0 0 0 / .12); padding: 6px; display: flex; flex-direction: column;
+}
+.menu-label { font-size: var(--fs-xs); color: var(--muted); padding: 6px 10px 4px; }
+.menu-item { display: flex; align-items: center; gap: 10px; height: var(--h); padding: 0 10px; border-radius: 6px; text-align: left; font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-item:hover, .menu-item:focus-visible { background: var(--scope-soft); outline: none; }
+.menu-item .grow { overflow: hidden; text-overflow: ellipsis; }
+.menu-item small { font-size: var(--fs-xs); color: var(--muted); }
+.menu-sep { height: 1px; background: var(--line); margin: 6px 4px; }
+.menu { width: 320px; }
+.nn { display: flex; flex-direction: column; gap: 12px; padding: 10px; }
+.check-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); cursor: pointer; }
+.check-row input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex: none; }
+.nn-fields { display: flex; flex-direction: column; gap: 8px; }
+.nn .panel-actions { padding-top: 2px; }
+.nn .btn.primary { background: var(--scope); color: var(--on-scope); }
+.nn-join { margin: 0 10px 8px; padding-top: 10px; border-top: 1px solid var(--line); text-align: left; font-size: var(--fs-xs); color: var(--muted); }
+.nn-join:hover { color: var(--ink); }
+.nn .check-row input { accent-color: var(--scope); }
+.menu-item svg { width: 14px; height: 14px; flex: none; color: var(--scope); margin: 0 -2px 0 -4px; }
+#noteTitle:focus-visible, #noteBody:focus-visible { outline: none; }
+.new-note:hover { opacity: .88; }
+/* 목록 위 줄: [+] [검색] (검색창) … [선택] */
+.list-bar .new-note { order: -2; }
+.list-bar #searchBtn { order: -1; margin-right: 4px; background: var(--scope-soft); color: var(--scope); }
+.list-bar #searchBtn:hover { background: var(--scope-soft); color: var(--scope); opacity: .8; }
+.list-bar .search-box { margin-left: 4px; }
+.list-bar .search-box:not([hidden]) ~ .grow { display: none; }
+.list-bar #selectBtn { order: 2; margin-right: -9px; }
+.sel-bar { display: flex; align-items: center; gap: 16px; width: 100%; }
+.sel-all span { font-weight: 600; }
+.sel-all input { accent-color: var(--scope); }
+.sel-bar .link.danger { font-weight: 600; }
+.sel-bar .link.danger:not(:disabled) { color: var(--danger); }
+.sel-bar .link:disabled { opacity: .4; cursor: default; }
+.item.selecting { flex-direction: row; align-items: flex-start; gap: 12px; }
+.item.selecting .item-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.sel-box { width: 18px; height: 18px; flex: none; margin-top: 2px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px var(--muted); position: relative; }
+.item.picked .sel-box { background: var(--scope); box-shadow: none; }
+.item.picked .sel-box::after { content: ""; position: absolute; left: 6px; top: 2.5px; width: 5px; height: 9px; border: solid var(--on-scope); border-width: 0 1.8px 1.8px 0; transform: rotate(45deg); }
+.item.picked { background: var(--scope-soft); margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 6px; }
+.new-note:disabled { opacity: .4; cursor: default; }
+.new-note svg { width: 18px; height: 18px; }
+.list-bar { display: flex; align-items: center; gap: 4px; width: 100%; }
+.list { padding-top: 4px; }
+.search-box { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: var(--h); padding-left: 12px; border-radius: var(--r); background: var(--faint); color: var(--muted); }
+.search-box svg { width: 16px; height: 16px; flex: none; }
+.search-box .icon-btn { width: 32px; height: 32px; }
+.search-box .icon-btn svg { width: 14px; height: 14px; }
+.search { flex: 1; min-width: 0; height: 100%; font-size: var(--fs-md); color: var(--ink); }
+.search:focus-visible { outline: none; }
+.search::-webkit-search-cancel-button { display: none; }
+.list { flex: 1; overflow-y: auto; padding-bottom: 24px; display: flex; flex-direction: column; }
+.item { text-align: left; padding: 14px 0; display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--line); }
+.item:first-child { border-top: 0; }
+.item-title { font-size: var(--fs-md); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-title.untitled { color: var(--muted); }
+.item:hover .item-title { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.item.on .item-title { color: var(--scope); }
+.item.on .item-title::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--scope); margin: 0 8px 2px 0; vertical-align: middle;
+}
+.item-snip { font-size: var(--fs-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-snip:empty { display: none; }
+.item-meta { font-size: var(--fs-xs); color: var(--muted); }
+/* 목록 맨 위 프로젝트 카드 */
+.proj-card { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; margin: 12px 0 8px; padding: 12px 14px; border-radius: 10px; background: var(--scope-soft); box-shadow: inset 0 0 0 1px transparent; }
+.proj-card:hover { box-shadow: inset 0 0 0 1px var(--scope); }
+.proj-card.on { box-shadow: inset 0 0 0 1.5px var(--scope); }
+.pc-head { display: flex; align-items: center; gap: 8px; color: var(--scope); }
+.pc-head svg { width: 16px; height: 16px; flex: none; }
+.pc-title { flex: 1; font-size: var(--fs-md); font-weight: 600; }
+.pc-count { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--scope); color: var(--on-scope); font-size: var(--fs-xs); font-weight: 600; display: grid; place-items: center; }
+.pc-preview { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); color: var(--muted); padding-left: 24px; }
+.pc-item { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-item .dday { font-size: var(--fs-xs); margin-right: 2px; }
+.proj-card + .item { border-top: 0; }
+.proj-actions { display: flex; align-items: center; gap: 8px; }
+.proj-del { width: 28px; height: 28px; gap: 4px; }
+.proj-del svg { width: 15px; height: 15px; }
+.proj-del:hover { color: var(--danger); background: transparent; }
+.proj-del.armed { display: flex; width: auto; padding: 0 8px; color: var(--danger); background: var(--faint); }
+.proj-del.armed .tab-del-label { display: inline; }
+
+/* ---------- 본문 화면 공통 ---------- */
+main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.col { width: 100%; max-width: 720px; margin: 0 auto; }
+.head-row { display: flex; align-items: center; gap: 12px; }
+.view-body { flex: 1; min-height: 0; overflow-y: auto; padding-block: 8px 56px; }
+.back { display: none; }
+.scope { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-sm); font-weight: 600; color: var(--scope); }
+.item-snip.mine { color: var(--mine); }
+.status { font-size: var(--fs-xs); color: var(--muted); }
+
+/* ---------- 노트 편집 ---------- */
+.ed-inner { display: flex; flex-direction: column; min-height: 100%; padding-top: 32px; }
+#noteTitle { font-size: var(--fs-2xl); font-weight: 600; line-height: 1.35; letter-spacing: -0.02em; width: 100%; padding: 0; }
+#edMeta { padding: 6px 0 24px; }
+#noteBody { flex: 1; min-height: 55vh; resize: none; font-size: var(--fs-lg); line-height: 1.85; padding: 0; }
+
+/* ---------- 프로젝트 ---------- */
+.proj { display: grid; grid-template-columns: 20px 56px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.check { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--muted); align-self: start; margin-top: 3px; position: relative; }
+.check:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.proj.done .check { background: var(--accent); box-shadow: none; }
+.proj.done .check::after { content: ""; position: absolute; left: 6px; top: 3px; width: 5px; height: 9px; border: solid var(--on-accent); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+.dday { font-size: var(--fs-sm); font-weight: 600; }
+.dday { color: var(--accent); }
+.dday.urgent { color: var(--danger); }
+.dday.none { color: var(--muted); font-weight: 400; }
+.proj-title { font-size: var(--fs-lg); font-weight: 500; overflow-wrap: anywhere; }
+.proj.done .proj-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+.proj-sub { font-size: var(--fs-sm); color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.proj-form { display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.proj-form #pjTitle { height: 44px; font-size: var(--fs-lg); font-weight: 500; }
+.pf-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pf-row input[type="date"] { width: auto; }
+.pf-label { font-size: var(--fs-sm); color: var(--muted); min-width: 40px; }
+.pf-actions { display: flex; align-items: center; gap: 16px; padding-top: 4px; }
+.pf-actions .spacer { margin-right: auto; }
+.done-toggle { margin-top: 20px; height: var(--h); }
+
+/* ---------- 공유 노트 설정 · 초대 ---------- */
+.tabs { overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: none; }
+.tab-add { align-self: center; margin-left: -8px; }
+.tab { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.tabs.reordering { cursor: grabbing; }
+.nb-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; flex: none; }
+.nb-gear[aria-expanded="true"] { color: var(--ink); background: var(--faint); }
+.nb-actions:empty { display: none; }
+.tab-del { gap: 4px; margin-right: -8px; }
+.tab-del svg { width: 17px; height: 17px; }
+.tab-del:hover { color: var(--danger); background: transparent; }
+.tab-del-label { display: none; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.tab-del.armed { display: flex; width: auto; padding: 0 10px; color: var(--danger); background: var(--faint); }
+.tab-del.armed .tab-del-label { display: inline; }
+.tabs.reordering .tab-del { display: none; }
+.tab.dragging { color: var(--ink); background: var(--faint); border-radius: 6px 6px 0 0; padding: 0 10px; margin: 0 -10px; z-index: 1; cursor: grabbing; }
+.tab-add[aria-expanded="true"] { color: var(--ink); background: var(--faint); }
+.invites { display: flex; flex-direction: column; background: var(--accent-soft); }
+.invite { display: flex; align-items: center; gap: 16px; min-height: 52px; flex-wrap: wrap; padding-block: 8px; font-size: var(--fs-sm); }
+.invite + .invite { border-top: 1px solid var(--line); }
+.invite-text strong { font-weight: 600; }
+.panel { display: flex; flex-direction: column; gap: 28px; padding-top: 24px; max-width: 520px; }
+.panel-sec { display: flex; flex-direction: column; gap: 8px; }
+.panel-sec.end { padding-top: 12px; border-top: 1px solid var(--line); align-items: flex-start; }
+.panel-actions { display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
+.fld { display: flex; flex-direction: column; gap: 8px; }
+.fld-label { font-size: var(--fs-sm); font-weight: 600; }
+.fld-row { display: flex; gap: 8px; }
+.fld-help { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
+.fld-msg { margin: 0; font-size: var(--fs-sm); color: var(--accent); }
+.fld-msg:empty { display: none; }
+.fld-msg.bad { color: var(--danger); }
+.people { display: flex; flex-direction: column; }
+.person { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.person:first-child { border-top: 1px solid var(--line); }
+.person-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.person-meta { font-size: var(--fs-xs); color: var(--muted); }
+.hint.tight { padding: 4px 0; }
+.panel-group { display: flex; flex-direction: column; gap: 28px; }
+.share-row { font-size: var(--fs-md); font-weight: 600; }
+.share-row input { accent-color: var(--accent); }
+.share-row input:disabled + span { color: var(--muted); }
+.share-confirm { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; padding: 12px; border-radius: var(--r); background: var(--faint); font-size: var(--fs-sm); }
+.share-confirm > span:first-child { flex-basis: 100%; }
+.btn.danger-btn { background: var(--danger); color: var(--bg); }
+.btn.danger-btn:hover { background: var(--danger); opacity: .88; }
+
+@media (max-width: 760px) {
+  .top { column-gap: 12px; }
+  .brand, .me { height: 52px; }
+  .me > span, .brand small { display: none; }
+  .nb-row { order: 3; flex-basis: 100%; height: 44px; }
+  .me { margin-left: auto; }
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .rail { border-right: 0; }
+  .app[data-view="list"] main { display: none; }
+  .app[data-view="detail"] .rail { display: none; }
+  .back { display: grid; margin-left: -8px; }
+  .view-title { font-size: var(--fs-lg); }
+  #noteTitle { font-size: 24px; }
+  .ed-inner { padding-top: 20px; }
+  .proj { grid-template-columns: 20px 48px minmax(0, 1fr) auto; gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+</head>
+<body>
+<section class="gate gutter" id="gate">
+  <div class="gate-card" id="gateLogin" data-gate="login" hidden>
+    <div class="wordmark"><h1>알코 노트</h1><span>ALKO note</span></div>
+    <p>함께 쓰는 노트. 구글 계정으로 로그인해 주세요.</p>
+    <button class="gbtn" id="loginBtn">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+      Google 계정으로 로그인
+    </button>
+    <div class="gate-msg" id="gateMsg" role="alert"></div>
+  </div>
+  <div class="gate-card" id="gateClaude" data-gate="claude" hidden>
+    <div class="wordmark"><h1>알코 노트</h1><span>ALKO note</span></div>
+    <p>claude.ai에 로그인하면 알코 노트를 쓸 수 있어요. 함께 쓰려면 페이지 소유자에게 참여자(Contributor) 권한을 받아야 해요.</p>
+  </div>
+  <div class="gate-card" id="gateLocal" data-gate="local" hidden>
+    <div class="wordmark"><h1>알코 노트</h1><span>ALKO note</span></div>
+    <p>개발 모드예요. 데이터는 이 브라우저에만 저장돼요. 브라우저 탭마다 다른 사용자로 들어가면 함께 쓰는 상황을 시험할 수 있어요. 초대는 user1@local, user2@local 로 보내 보세요.</p>
+    <div class="gate-users" id="gateLocalUsers"></div>
+  </div>
+</section>
+
+<div id="shell" hidden>
+<header class="top gutter">
+  <div class="brand">알코 노트 <small>ALKO note</small> <span class="dev" id="devBadge" hidden>dev</span></div>
+  <div class="nb-row">
+    <nav class="tabs" id="tabs" role="tablist" aria-label="노트북"></nav>
+    <div class="nb-actions" id="nbActions"></div>
+  </div>
+  <div class="me" id="me"></div>
+</header>
+<div class="menu" id="newMenu" role="dialog" aria-label="새 노트북 만들기" hidden></div>
+<div class="banner gutter" id="banner" hidden></div>
+<div class="invites gutter" id="invites" hidden></div>
+
+<div class="app" id="app" data-view="list">
+  <aside class="rail">
+    <div class="rail-top gutter">
+      
+      <div class="sel-bar" id="selectBar" hidden>
+        <label class="check-row sel-all"><input type="checkbox" id="selAll"><span id="selCount">0개 선택</span></label>
+        <span class="grow"></span>
+        <button class="link danger" id="selDelete" disabled>삭제</button>
+        <button class="link" id="selCancel">취소</button>
+      </div>
+      <div class="list-bar" id="listTools">
+            <div class="search-box" id="searchBox" hidden>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M12.7 12.7 17 17"/></svg>
+        <input class="search" id="search" type="search" placeholder="검색" aria-label="노트 검색" autocomplete="off">
+        <button class="icon-btn" id="searchClose" aria-label="검색 닫기"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8"/></svg></button>
+      </div>
+      <span class="grow"></span>
+        <button class="icon-btn" id="selectBtn" aria-label="노트 선택해서 지우기" title="선택"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="5" height="5" rx="1"/><path d="M11.5 6h5M11.5 14h5"/><rect x="3.5" y="11.5" width="5" height="5" rx="1"/><path d="M4.8 14l1.2 1.2 2-2.4"/></svg></button>
+        <button class="icon-btn" id="searchBtn" aria-label="검색" title="검색 (⌘K)"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M12.7 12.7 17 17"/></svg></button>
+        <button class="new-note" id="newBtn" aria-label="새 노트" title="새 노트"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
+      </div>
+    </div>
+    <div class="list gutter" id="list"><div class="hint">불러오는 중…</div></div>
+  </aside>
+
+  <main>
+    <section class="view" id="projView" hidden>
+      <div class="view-head gutter">
+        <div class="col head-row">
+          <button class="icon-btn back" id="projBack" aria-label="목록으로"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg></button>
+          <h2 class="view-title" id="projTitle">진행 중인 프로젝트</h2>
+          <span class="count" id="projCount"></span>
+          <span class="grow"></span>
+          <button class="btn primary" id="projAdd"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>프로젝트</button>
+        </div>
+      </div>
+      <div class="view-body gutter">
+        <div class="col">
+          <div id="projList"></div>
+          <div id="projDone"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="spaceView" hidden>
+      <div class="view-head gutter">
+        <div class="col head-row">
+          <h2 class="view-title" id="spaceTitle"></h2>
+          <span class="grow"></span>
+          <button class="link" id="spaceClose">닫기</button>
+        </div>
+      </div>
+      <div class="view-body gutter">
+        <div class="col" id="spaceBody"></div>
+      </div>
+    </section>
+
+    <section class="view" id="emptyView">
+      <div class="view-head gutter">
+        <div class="col head-row"><h2 class="view-title" id="emptyTitle">노트</h2></div>
+      </div>
+      <div class="view-body gutter">
+        <div class="col"><p class="hint" id="emptyText">목록에서 노트를 열거나 + 로 새 노트를 만드세요.</p></div>
+      </div>
+    </section>
+
+    <section class="view" id="editorView" hidden>
+      <div class="view-head gutter">
+        <div class="col head-row">
+          <button class="icon-btn back" id="backBtn" aria-label="목록으로"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg></button>
+          <span class="scope" id="scopePill"></span>
+          <span class="grow"></span>
+          <span class="status" id="status"></span>
+          <button class="link danger" id="delBtn">삭제</button>
+        </div>
+      </div>
+      <div class="view-body gutter">
+        <div class="col ed-inner">
+          <input id="noteTitle" type="text" placeholder="제목" aria-label="제목" autocomplete="off">
+          <div class="meta" id="edMeta"></div>
+          <textarea id="noteBody" placeholder="내용을 입력하세요" aria-label="내용"></textarea>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
