@@ -767,10 +767,7 @@ async function removeSpace(sp) {
 function openProjects() {
   flushSave();
   S.open = null; S.dirty = false; S.panel = null; S.board = true;
-  // 아직 프로젝트가 없으면 추가 칸을 바로 열어 둠
-  if (S.loaded["p:" + S.tab] && !activeProjects(S.tab).length && S.editProject === null) S.editProject = "new";
   renderView(); renderProjects();
-  if (S.editProject === "new" && $("#pjTitle")) $("#pjTitle").focus();
   $("#app").dataset.view = "detail";
   renderRail();
 }
