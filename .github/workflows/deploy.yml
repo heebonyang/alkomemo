@@ -16,18 +16,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       - name: 배포할 수 있는지 확인
         id: check
         env:
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          PROJECT=$(node -e "console.log(require('./.firebaserc').projects.default)")
+          # .firebaserc 는 확장자가 없어서 require 로는 JSON 으로 안 읽힘
+          PROJECT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.firebaserc','utf8')).projects.default)")
           if [ -z "$SA" ]; then
             echo "::notice::FIREBASE_SERVICE_ACCOUNT 비밀값이 없어서 배포를 건너뜁니다."
             echo "skip=true" >> "$GITHUB_OUTPUT"
