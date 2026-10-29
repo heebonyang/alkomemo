@@ -32,7 +32,7 @@ const S = {
   notes: {}, projects: {}, pending: {}, loaded: {},
   invites: [], spaceSubs: {},
   open: null, dirty: false, writes: 0, chain: Promise.resolve(), saveTimer: null,
-  panel: null, editProject: null, showDone: false, tabChosen: false, q: "", unsubs: [],
+  panel: null, editProject: null, tabChosen: false, q: "", unsubs: [],
   tabOrder: [], hidePrivate: false, drag: null, select: null, board: false,
 };
 
@@ -516,7 +516,7 @@ function projectEntry() {
   return el("button", { class: "proj-card" + (on ? " on" : ""), "aria-pressed": String(on), onclick: openProjects },
     el("span", { class: "pc-head" },
       svg('<rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M7 8h6M7 11.5h4"/>'),
-      el("span", { class: "pc-title", text: "진행 중인 프로젝트" }),
+      el("span", { class: "pc-title", text: "프로젝트" }),
       active.length ? el("span", { class: "pc-count", text: active.length }) : null),
     el("span", { class: "pc-preview" }, preview));
 }
@@ -959,6 +959,7 @@ function renderProjects() {
   const sid = S.tab;
   if (!isSpace(sid)) return;
   const active = activeProjects(sid);
+  // 완료한 프로젝트도 숨기지 않고 진행 중인 것 아래에 줄 그어서 보여 줌 (최근에 완료한 것부터)
   const done = (S.projects[sid] || []).filter((p) => p.done).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   $("#projCount").textContent = active.length ? `진행 중 ${active.length}개` : "";
   // 입력 중인 폼은 다시 그리지 않음 (상대방 저장으로 입력 내용이 날아가지 않게)
@@ -966,16 +967,9 @@ function renderProjects() {
   const rows = [];
   if (S.editProject === "new") rows.push(projectForm(null));
   if (!S.loaded["p:" + sid]) rows.push(el("div", { class: "hint", text: "불러오는 중…" }));
-  else if (!active.length && S.editProject !== "new") rows.push(el("div", { class: "hint", text: "진행 중인 프로젝트가 없어요. ‘+ 프로젝트’로 시작해 보세요." }));
-  active.forEach((p) => rows.push(S.editProject === p.id ? projectForm(p) : projectRow(p)));
+  else if (!active.length && !done.length && S.editProject !== "new") rows.push(el("div", { class: "hint", text: "프로젝트가 없어요. ‘+ 프로젝트’로 시작해 보세요." }));
+  [...active, ...done].forEach((p) => rows.push(S.editProject === p.id ? projectForm(p) : projectRow(p)));
   $("#projList").replaceChildren(...rows);
-
-  const doneBox = $("#projDone");
-  if (!done.length) { doneBox.replaceChildren(); return; }
-  doneBox.replaceChildren(
-    el("button", { class: "done-toggle", "aria-expanded": String(S.showDone), onclick: () => { S.showDone = !S.showDone; renderProjects(); },
-      text: `완료된 프로젝트 ${done.length}개 ${S.showDone ? "숨기기" : "보기"}` }),
-    ...(S.showDone ? done.map((p) => (S.editProject === p.id ? projectForm(p) : projectRow(p))) : []));
 }
 
 function projectRow(p) {

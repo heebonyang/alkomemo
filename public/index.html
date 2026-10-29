@@ -69,8 +69,8 @@ svg { display: block; }
 .icon-btn { width: var(--h); height: var(--h); display: grid; place-items: center; border-radius: var(--r); color: var(--muted); flex: none; }
 .icon-btn:hover { color: var(--ink); background: var(--faint); }
 .icon-btn svg { width: 18px; height: 18px; }
-.link, .done-toggle { color: var(--muted); font-size: var(--fs-sm); }
-.link:hover, .done-toggle:hover { color: var(--ink); }
+.link { color: var(--muted); font-size: var(--fs-sm); }
+.link:hover { color: var(--ink); }
 .link.danger:hover, .link.danger.armed { color: var(--danger); }
 .field, .proj-form input {
   height: var(--h); padding: 0 12px; border-radius: var(--r); background: var(--faint); font-size: var(--fs-md); width: 100%; min-width: 0;
@@ -221,15 +221,20 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 /* ---------- 프로젝트 ---------- */
 .proj { display: grid; grid-template-columns: 20px 56px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 16px 0; border-bottom: 1px solid var(--line); }
 .check { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--muted); align-self: start; margin-top: 3px; position: relative; }
-.check:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.proj.done .check { background: var(--accent); box-shadow: none; }
-.proj.done .check::after { content: ""; position: absolute; left: 6px; top: 3px; width: 5px; height: 9px; border: solid var(--on-accent); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+.check:hover { box-shadow: inset 0 0 0 1.5px var(--scope); }
+.proj.done .check { background: var(--scope); box-shadow: none; }
+.proj.done .check::after { content: ""; position: absolute; left: 6px; top: 3px; width: 5px; height: 9px; border: solid var(--on-scope); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
 .dday { font-size: var(--fs-sm); font-weight: 600; }
-.dday { color: var(--accent); }
+.dday { color: var(--scope); }
+/* 프로젝트 화면의 버튼도 노트북 색으로 */
+#projView .btn.primary, .proj-form .btn-ink { background: var(--scope); color: var(--on-scope); }
 .dday.urgent { color: var(--danger); }
 .dday.none { color: var(--muted); font-weight: 400; }
 .proj-title { font-size: var(--fs-lg); font-weight: 500; overflow-wrap: anywhere; }
-.proj.done .proj-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+.proj.done .proj-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); text-decoration-thickness: 1px; }
+.proj.done .proj-sub { opacity: .55; text-decoration: line-through; text-decoration-color: var(--muted); }
+.proj.done .dday { opacity: .55; }
+.proj.done .check { opacity: .7; }
 .proj-sub { font-size: var(--fs-sm); color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
 .proj-form { display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid var(--line); }
 .proj-form #pjTitle { height: 44px; font-size: var(--fs-lg); font-weight: 500; }
@@ -238,7 +243,6 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .pf-label { font-size: var(--fs-sm); color: var(--muted); min-width: 40px; }
 .pf-actions { display: flex; align-items: center; gap: 16px; padding-top: 4px; }
 .pf-actions .spacer { margin-right: auto; }
-.done-toggle { margin-top: 20px; height: var(--h); }
 
 /* ---------- 공유 노트 설정 · 초대 ---------- */
 .tabs { overflow-x: auto; scrollbar-width: none; }
@@ -374,7 +378,7 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
       <div class="view-head gutter">
         <div class="col head-row">
           <button class="icon-btn back" id="projBack" aria-label="목록으로"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg></button>
-          <h2 class="view-title" id="projTitle">진행 중인 프로젝트</h2>
+          <h2 class="view-title" id="projTitle">프로젝트</h2>
           <span class="count" id="projCount"></span>
           <span class="grow"></span>
           <button class="btn primary" id="projAdd"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>프로젝트</button>
@@ -383,7 +387,6 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
       <div class="view-body gutter">
         <div class="col">
           <div id="projList"></div>
-          <div id="projDone"></div>
         </div>
       </div>
     </section>
