@@ -45,6 +45,16 @@ jobs:
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          # 키 형식 확인: 비밀값은 출력하지 않고, 어느 계정·프로젝트 키인지만 알려 줌
+          node -e '
+            const fs = require("fs");
+            let k;
+            try { k = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); }
+            catch (e) { console.log("::error title=배포 열쇠 형식 오류::FIREBASE_SERVICE_ACCOUNT 값이 JSON 이 아니에요. 키 파일 내용 전체({ 부터 } 까지)를 다시 붙여 넣어 주세요."); process.exit(1); }
+            const miss = ["type", "project_id", "private_key", "client_email"].filter((f) => !k[f]);
+            if (k.type !== "service_account" || miss.length) { console.log("::error title=배포 열쇠 형식 오류::서비스 계정 키가 아니에요 (type=" + k.type + ", 빠진 항목: " + (miss.join(", ") || "없음") + ")"); process.exit(1); }
+            console.log("::notice title=배포 열쇠::" + k.client_email + " (프로젝트 " + k.project_id + ")");
+          ' "$RUNNER_TEMP/sa.json" || { rm -f "$RUNNER_TEMP/sa.json"; exit 1; }
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           set +e
           npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project "${{ steps.check.outputs.project }}" --non-interactive 2>&1 | tee "$RUNNER_TEMP/deploy.log"
