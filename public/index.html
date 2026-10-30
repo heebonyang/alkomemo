@@ -133,6 +133,12 @@ svg { display: block; }
 .menu-item small { font-size: var(--fs-xs); color: var(--muted); }
 .menu-sep { height: 1px; background: var(--line); margin: 6px 4px; }
 .menu { width: 320px; }
+.note-menu { width: 240px; min-width: 0; }
+.note-menu .menu-item.danger { color: var(--danger); }
+.note-menu .menu-item.danger:hover, .note-menu .menu-item.danger:focus-visible { background: var(--faint); }
+.note-menu .menu-item.danger.armed { font-weight: 600; }
+.note-menu .menu-item .dot { margin: 0 2px; }
+.more-btn { margin-right: -9px; }
 .nn { display: flex; flex-direction: column; gap: 12px; padding: 10px; }
 .check-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); cursor: pointer; }
 .check-row input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex: none; }
@@ -360,6 +366,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
   <div class="me" id="me"></div>
 </header>
 <div class="menu" id="newMenu" role="dialog" aria-label="새 노트북 만들기" hidden></div>
+<div class="menu note-menu" id="noteMenu" role="menu" aria-label="노트 메뉴" hidden></div>
 <div class="banner gutter" id="banner" hidden></div>
 <div class="invites gutter" id="invites" hidden></div>
 
@@ -436,7 +443,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
           <button class="icon-btn back" id="backBtn" aria-label="목록으로"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg></button>
           <span class="grow"></span>
           <span class="status" id="status"></span>
-          <button class="link danger" id="delBtn">삭제</button>
+          <button class="icon-btn more-btn" id="moreBtn" aria-label="더보기" title="더보기" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4.5" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="15.5" cy="10" r="1.5"/></svg></button>
         </div>
       </div>
       <div class="view-body gutter">

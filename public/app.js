@@ -785,7 +785,7 @@ function openNote(scope, id) {
 function fillEditor(scope, n) {
   $("#noteTitle").value = n.title || "";
   $("#noteBody").value = n.body || "";
-  disarm($("#delBtn"), "삭제");
+  toggleNoteMenu(false);
   renderMeta(scope, n);
 }
 
@@ -933,6 +933,78 @@ function deleteOpen() {
   queue(() => deleteDoc(ref).catch((e) => setBanner(errText(e, "삭제에"))));
 }
 
+// 노트 화면 오른쪽 위 ⋯ 메뉴: 다른 노트북으로 옮기기 · 삭제
+function toggleNoteMenu(force, page = "main") {
+  const menu = $("#noteMenu"), btn = $("#moreBtn");
+  const open = force !== undefined ? force : menu.hidden;
+  menu.hidden = !open;
+  btn.setAttribute("aria-expanded", String(open));
+  if (!open || !S.open) { menu.hidden = true; return; }
+  const item = (props, ...kids) => el("button", { type: "button", class: "menu-item", role: "menuitem", ...props }, ...kids);
+  if (page === "move") {
+    const targets = orderedTabs().filter((t) => t.id !== S.open.scope);
+    menu.replaceChildren(
+      el("div", { class: "menu-label", text: "어느 노트북으로 옮길까요?" }),
+      ...targets.map((t) => item({ class: "menu-item " + scopeClass(t.id), onclick: () => { toggleNoteMenu(false); moveOpen(t.id); } },
+        el("span", { class: "dot" }), el("span", { class: "grow", text: t.name }))),
+      ...(targets.length ? [] : [el("div", { class: "menu-label", text: "옮길 다른 노트북이 없어요." })]),
+      el("div", { class: "menu-sep" }),
+      item({ onclick: (e) => { e.stopPropagation(); toggleNoteMenu(true); } }, "← 뒤로"));
+  } else {
+    const del = item({ class: "menu-item danger", text: "삭제",
+      onclick: (e) => { e.stopPropagation(); arm(del, "한 번 더 누르면 삭제", () => { toggleNoteMenu(false); deleteOpen(); }); } });
+    menu.replaceChildren(
+      item({ onclick: (e) => { e.stopPropagation(); toggleNoteMenu(true, "move"); } }, "다른 노트북으로 옮기기"),
+      el("div", { class: "menu-sep" }),
+      del);
+  }
+  // ⋯ 버튼 아래, 오른쪽 끝을 맞춰서 띄움 (화면 밖으로 나가지 않게)
+  const r = btn.getBoundingClientRect();
+  menu.style.top = r.bottom + 6 + "px";
+  menu.style.left = Math.max(16, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16)) + "px";
+  const first = menu.querySelector(".menu-item");
+  if (first) first.focus();
+}
+
+// 옮기기 = 새 노트북에 같은 내용으로 만들고, 성공하면 원래 노트를 지움. 옮긴 뒤엔 그 노트북에서 노트를 계속 열어 둠
+async function moveOpen(target) {
+  if (!S.open || target === S.open.scope) return;
+  const { scope, id } = S.open;
+  const n = (S.notes[scope] || []).find((x) => x.id === id) || {};
+  const now = Date.now();
+  const data = {
+    title: $("#noteTitle").value, body: $("#noteBody").value,
+    createdBy: n.createdBy || S.uid, createdAt: n.createdAt || now, updatedBy: S.uid, updatedAt: now,
+  };
+  clearTimeout(S.saveTimer);
+  S.dirty = false;
+  const from = docIn(notesCol(scope), id), to = docIn(notesCol(target));
+  S.notes[scope] = (S.notes[scope] || []).filter((x) => x.id !== id);
+  S.notes[target] = [{ id: to.id, ...data }, ...(S.notes[target] || [])];
+  S.tab = target; S.tabChosen = true; S.panel = null; S.board = false;
+  S.open = { scope: target, id: to.id };
+  closeSearch(); endSelect();
+  if (isSpace(target)) renderProjects();
+  fillEditor(target, data);
+  setStatus("옮기는 중…");
+  renderAll();
+  $("#app").dataset.view = "detail";
+  queue(async () => {
+    try {
+      await setDoc(to, data);
+    } catch (e) {
+      // 새 노트북에 못 만들었으면 원래 노트는 그대로 둠
+      S.notes[target] = (S.notes[target] || []).filter((x) => x.id !== to.id);
+      S.notes[scope] = [{ id, ...n, ...data }, ...(S.notes[scope] || [])];
+      setBanner(errText(e, "옮기기에"));
+      switchTab(scope); openNote(scope, id);
+      return;
+    }
+    try { await deleteDoc(from); } catch (e) { setBanner(errText(e, "원래 노트 지우기에")); }
+    if (S.open && S.open.id === to.id) setStatus(`${target === "private" ? "노트" : spaceName(target)} 노트북으로 옮김`);
+  });
+}
+
 /* ---------- projects ---------- */
 const DAY = 86400000;
 const fmtDay = (s) => { const d = parseYmd(s); return `${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]})`; };
@@ -1064,7 +1136,10 @@ $("#noteTitle").addEventListener("input", onEdit);
 $("#noteBody").addEventListener("input", onEdit);
 $("#noteTitle").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#noteBody").focus(); } });
 $("#backBtn").addEventListener("click", () => { flushSave(); $("#app").dataset.view = "list"; });
-$("#delBtn").addEventListener("click", (e) => arm(e.currentTarget, "한 번 더 누르면 삭제", deleteOpen));
+$("#moreBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleNoteMenu(); });
+document.addEventListener("click", (e) => { if (!$("#noteMenu").hidden && !e.target.closest("#noteMenu")) toggleNoteMenu(false); });
+$("#noteMenu").addEventListener("keydown", (e) => { if (e.key === "Escape") { toggleNoteMenu(false); $("#moreBtn").focus(); } });
+window.addEventListener("resize", () => toggleNoteMenu(false));
 $("#loginBtn").addEventListener("click", login);
 LOCAL_USERS.forEach((u) => $("#gateLocalUsers").append(el("button", { class: "gbtn", onclick: () => signInLocal(u.uid), text: u.displayName + "로 들어가기" })));
 $("#devBadge").hidden = MODE !== "local";
