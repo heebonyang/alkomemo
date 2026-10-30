@@ -116,9 +116,10 @@ svg { display: block; }
 .app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--rail-w, 300px) minmax(0, 1fr); }
 .rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; position: relative; }
 .rail-resize { position: absolute; z-index: 5; top: 0; bottom: 0; right: -4px; width: 8px; cursor: col-resize; touch-action: none; }
-.rail-resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: var(--scope); opacity: 0; transition: opacity .15s; }
-.rail-resize:hover::after, .rail-resize:focus-visible::after, .app.resizing .rail-resize::after { opacity: 1; }
-.rail-resize:focus-visible { outline: none; }
+.rail-resize::after, .col-resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: var(--scope); opacity: 0; transition: opacity .15s; }
+.rail-resize:hover::after, .rail-resize:focus-visible::after, .rail-resize.dragging::after,
+.col-resize:hover::after, .col-resize:focus-visible::after, .col-resize.dragging::after { opacity: 1; }
+.rail-resize:focus-visible, .col-resize:focus-visible { outline: none; }
 .app.resizing { cursor: col-resize; user-select: none; }
 .rail-top, .view-head { height: var(--head); flex: none; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .new-note { width: var(--h); height: var(--h); flex: none; display: grid; place-items: center; border-radius: var(--r); background: var(--scope); color: var(--on-scope); }
@@ -212,9 +213,14 @@ svg { display: block; }
 .proj-del.armed .tab-del-label { display: inline; }
 
 /* ---------- 본문 화면 공통 ---------- */
-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+main { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .col { width: 100%; max-width: 720px; margin: 0 auto; }
+/* 오른쪽 화면: 왼쪽에 붙이고, 오른쪽 경계선을 끌어서 폭 조절 */
+main .gutter { padding-left: 32px; }
+main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
+.col-resize { position: absolute; z-index: 5; top: 0; bottom: 0; left: min(calc(32px + var(--col-w, 720px)), calc(100% - 12px)); width: 8px; margin-left: -4px; cursor: col-resize; touch-action: none; }
+.col-resize::before { content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: var(--line); }
 .head-row { display: flex; align-items: center; gap: 12px; }
 .view-body { flex: 1; min-height: 0; overflow-y: auto; padding-block: 8px 56px; }
 .back { display: none; }
@@ -311,7 +317,9 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   .me { margin-left: auto; }
   .app { grid-template-columns: minmax(0, 1fr); }
   .rail { border-right: 0; }
-  .rail-resize { display: none; }
+  .rail-resize, .col-resize { display: none; }
+  main .gutter { padding-left: max(20px, env(safe-area-inset-left, 0px)); }
+  main .col { max-width: none; padding-right: 0; }
   .app[data-view="list"] main { display: none; }
   .app[data-view="detail"] .rail { display: none; }
   .back { display: grid; margin-left: -8px; }
@@ -386,6 +394,7 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   </aside>
 
   <main>
+    <div class="col-resize" id="colResize" role="separator" aria-orientation="vertical" aria-label="노트 폭 조절" tabindex="0" title="끌어서 폭 조절 · 두 번 눌러 원래대로"></div>
     <section class="view" id="projView" hidden>
       <div class="view-head gutter">
         <div class="col head-row">

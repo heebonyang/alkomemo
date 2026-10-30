@@ -1077,51 +1077,56 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("visibilitychange", () => { if (document.hidden) flushSave(); });
 window.addEventListener("beforeunload", (e) => { if (S.dirty || S.writes) { flushSave(); e.preventDefault(); } });
 
-/* ---------- 목록 폭 조절 (데스크톱) ---------- */
-const RAIL = { def: 300, min: 220, key: "alko.railWidth" };
-const railMax = () => Math.max(RAIL.min, Math.min(640, Math.round(window.innerWidth * 0.6)));
-function setRailWidth(w, save) {
-  const v = Math.round(Math.min(railMax(), Math.max(RAIL.min, w)));
-  $("#app").style.setProperty("--rail-w", v + "px");
-  $("#railResize").setAttribute("aria-valuenow", v);
-  if (save) try { localStorage.setItem(RAIL.key, v); } catch {}
-  return v;
-}
-function initRailResize() {
-  const h = $("#railResize"), app = $("#app");
+/* ---------- 목록 · 노트 폭 조절 (데스크톱) ---------- */
+// 경계선을 끌면 #app 의 CSS 변수(--rail-w / --col-w)를 바꾸고, 놓으면 이 브라우저에 기억
+function initResizer({ handle, cssVar, def, min, max, key }) {
+  const h = $(handle), app = $("#app");
+  const set = (w, save) => {
+    const v = Math.round(Math.min(Math.max(min, max()), Math.max(min, w)));
+    app.style.setProperty(cssVar, v + "px");
+    h.setAttribute("aria-valuenow", v);
+    if (save) try { localStorage.setItem(key, v); } catch {}
+    return v;
+  };
   let saved = null;
-  try { saved = Number(localStorage.getItem(RAIL.key)) || null; } catch {}
-  let width = setRailWidth(saved || RAIL.def, false);
-  h.setAttribute("aria-valuemin", RAIL.min);
+  try { saved = Number(localStorage.getItem(key)) || null; } catch {}
+  let width = set(saved || def, false);
+  h.setAttribute("aria-valuemin", min);
   h.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
     e.preventDefault();
     h.setPointerCapture(e.pointerId);
     const x0 = e.clientX, w0 = width;
     app.classList.add("resizing");
-    const move = (ev) => { width = setRailWidth(w0 + ev.clientX - x0, false); };
+    h.classList.add("dragging");
+    const move = (ev) => { width = set(w0 + ev.clientX - x0, false); };
     const up = () => {
       app.classList.remove("resizing");
+      h.classList.remove("dragging");
       h.removeEventListener("pointermove", move);
       h.removeEventListener("pointerup", up);
       h.removeEventListener("pointercancel", up);
-      setRailWidth(width, true);
+      set(width, true);
     };
     h.addEventListener("pointermove", move);
     h.addEventListener("pointerup", up);
     h.addEventListener("pointercancel", up);
   });
-  h.addEventListener("dblclick", () => { width = setRailWidth(RAIL.def, true); });
+  h.addEventListener("dblclick", () => { width = set(def, true); });
   h.addEventListener("keydown", (e) => {
     const step = e.shiftKey ? 40 : 10;
-    if (e.key === "ArrowLeft") width = setRailWidth(width - step, true);
-    else if (e.key === "ArrowRight") width = setRailWidth(width + step, true);
+    if (e.key === "ArrowLeft") width = set(width - step, true);
+    else if (e.key === "ArrowRight") width = set(width + step, true);
     else return;
     e.preventDefault();
   });
-  window.addEventListener("resize", () => { if (width > railMax()) width = setRailWidth(width, false); });
+  window.addEventListener("resize", () => { if (width > max()) width = set(width, false); });
 }
-initRailResize();
+initResizer({ handle: "#railResize", cssVar: "--rail-w", def: 300, min: 220, key: "alko.railWidth",
+  max: () => Math.min(640, Math.round(window.innerWidth * 0.6)) });
+// 노트 폭은 오른쪽 화면 안에서만: 왼쪽 여백 32px, 오른쪽 끝 20px 남김
+initResizer({ handle: "#colResize", cssVar: "--col-w", def: 720, min: 360, key: "alko.colWidth",
+  max: () => ($("main").clientWidth || Infinity) - 52 }); // 로그인 전처럼 안 보일 땐 제한 없음
 
 onUser((u) => {
   teardown();
