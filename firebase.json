@@ -1,6 +1,11 @@
 {
   "hosting": [
-    { "site": "alkonote", "public": "public", "ignore": ["firebase.json", "**/.*"] },
+    {
+      "site": "alkonote",
+      "public": "public",
+      "ignore": ["firebase.json", "**/.*"],
+      "headers": [{ "source": "**", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }]
+    },
     {
       "site": "alkomemo",
       "public": "redirect",
