@@ -1,22 +1,12 @@
 {
-  "hosting": {
-    "site": "alkonote",
-    "public": "public",
-    "ignore": [
-      "firebase.json",
-      "**/.*"
-    ]
-  },
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
-  "emulators": {
-    "firestore": {
-      "port": 8080
-    },
-    "ui": {
-      "enabled": false
+  "hosting": [
+    { "site": "alkonote", "public": "public", "ignore": ["firebase.json", "**/.*"] },
+    {
+      "site": "alkomemo",
+      "public": "redirect",
+      "redirects": [{ "source": "**", "destination": "https://alkonote.web.app/", "type": 301 }]
     }
-  }
+  ],
+  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
+  "emulators": { "firestore": { "port": 8080 }, "ui": { "enabled": false } }
 }
