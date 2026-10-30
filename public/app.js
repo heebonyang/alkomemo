@@ -785,7 +785,6 @@ function openNote(scope, id) {
 function fillEditor(scope, n) {
   $("#noteTitle").value = n.title || "";
   $("#noteBody").value = n.body || "";
-  renderHeadTitle();
   disarm($("#delBtn"), "삭제");
   renderMeta(scope, n);
 }
@@ -811,16 +810,8 @@ function closeEditor() {
   renderRail();
 }
 
-// 위쪽 제목 칸에는 열린 노트의 제목만 보여 줌
-function renderHeadTitle() {
-  const t = $("#noteTitle").value.trim(), h = $("#headTitle");
-  h.textContent = t || "제목 없음";
-  h.classList.toggle("untitled", !t);
-}
-
 function onEdit() {
   if (!S.open) return;
-  renderHeadTitle();
   S.dirty = true;
   setStatus("입력 중…");
   clearTimeout(S.saveTimer);

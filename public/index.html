@@ -221,8 +221,6 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .scope { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-sm); font-weight: 600; color: var(--scope); }
 .item-snip.mine { color: var(--mine); }
 .status { font-size: var(--fs-xs); color: var(--muted); }
-.head-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.head-title.untitled { color: var(--muted); font-weight: 500; }
 
 /* ---------- 노트 편집 ---------- */
 .ed-inner { display: flex; flex-direction: column; min-height: 100%; padding-top: 32px; }
@@ -431,7 +429,6 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
       <div class="view-head gutter">
         <div class="col head-row">
           <button class="icon-btn back" id="backBtn" aria-label="목록으로"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg></button>
-          <h2 class="view-title head-title" id="headTitle"></h2>
           <span class="grow"></span>
           <span class="status" id="status"></span>
           <button class="link danger" id="delBtn">삭제</button>
