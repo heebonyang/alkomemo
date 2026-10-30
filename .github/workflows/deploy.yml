@@ -46,5 +46,13 @@ jobs:
         run: |
           printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project "${{ steps.check.outputs.project }}" --non-interactive
+          set +e
+          npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project "${{ steps.check.outputs.project }}" --non-interactive 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          code=${PIPESTATUS[0]}
           rm -f "$RUNNER_TEMP/sa.json"
+          if [ "$code" -ne 0 ]; then
+            # 실패하면 마지막 줄들을 요약(annotation)으로 남겨서 로그를 안 열어도 원인이 보이게
+            msg=$(grep -v '^\s*$' "$RUNNER_TEMP/deploy.log" | tail -n 15 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Firebase 배포 실패::${msg}"
+            exit "$code"
+          fi
