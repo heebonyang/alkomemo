@@ -845,6 +845,15 @@ function flushSave() {
 }
 
 // 맨 윗줄 + 를 누르면 새 탭 창: 이름을 정하고, "초대해서 공유 노트로 만들기"를 체크하면 공유 탭(파랑), 아니면 혼자 쓰는 탭(호박색)
+// 맨 윗줄 + 바로 아래에 띄움 (화면 밖으로 나가지 않게)
+function placeNewMenu() {
+  const menu = $("#newMenu"), anchor = $("#tabAdd");
+  if (menu.hidden || !anchor) return;
+  const r = anchor.getBoundingClientRect();
+  menu.style.top = r.bottom + 6 + "px";
+  menu.style.left = Math.max(16, Math.min(r.left, window.innerWidth - menu.offsetWidth - 16)) + "px";
+}
+
 function toggleNewMenu(force) {
   const menu = $("#newMenu");
   const open = force !== undefined ? force : menu.hidden;
@@ -852,12 +861,7 @@ function toggleNewMenu(force) {
   const anchor = $("#tabAdd");
   if (anchor) anchor.setAttribute("aria-expanded", String(open));
   if (!open) return;
-  // 맨 윗줄 + 바로 아래에 띄움 (화면 밖으로 나가지 않게)
-  if (anchor) {
-    const r = anchor.getBoundingClientRect();
-    menu.style.top = r.bottom + 6 + "px";
-    menu.style.left = Math.max(16, Math.min(r.left, window.innerWidth - menu.offsetWidth - 16)) + "px";
-  }
+  placeNewMenu();
   const email = canEmailInvite();
   const nameIn = el("input", { class: "field", id: "nnName", type: "text", placeholder: "노트북 이름 (예: 회사, 여행)", autocomplete: "off", maxlength: "40", "aria-label": "노트북 이름" });
   const share = el("input", { type: "checkbox", id: "nnShare" });
@@ -933,6 +937,15 @@ function deleteOpen() {
   queue(() => deleteDoc(ref).catch((e) => setBanner(errText(e, "삭제에"))));
 }
 
+// ⋯ 버튼 아래, 오른쪽 끝을 맞춰서 띄움 (화면 밖으로 나가지 않게)
+function placeNoteMenu() {
+  const menu = $("#noteMenu");
+  if (menu.hidden) return;
+  const r = $("#moreBtn").getBoundingClientRect();
+  menu.style.top = r.bottom + 6 + "px";
+  menu.style.left = Math.max(16, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16)) + "px";
+}
+
 // 노트 화면 오른쪽 위 ⋯ 메뉴: 다른 노트북으로 옮기기 · 삭제
 function toggleNoteMenu(force, page = "main") {
   const menu = $("#noteMenu"), btn = $("#moreBtn");
@@ -958,10 +971,7 @@ function toggleNoteMenu(force, page = "main") {
       el("div", { class: "menu-sep" }),
       del);
   }
-  // ⋯ 버튼 아래, 오른쪽 끝을 맞춰서 띄움 (화면 밖으로 나가지 않게)
-  const r = btn.getBoundingClientRect();
-  menu.style.top = r.bottom + 6 + "px";
-  menu.style.left = Math.max(16, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16)) + "px";
+  placeNoteMenu();
   const first = menu.querySelector(".menu-item");
   if (first) first.focus();
 }
@@ -1127,7 +1137,8 @@ $("#spaceClose").addEventListener("click", closePanel);
 $("#newBtn").addEventListener("click", () => createNote(S.tab));
 document.addEventListener("click", (e) => { if (!$("#newMenu").hidden && !e.target.closest("#newMenu")) toggleNewMenu(false); });
 $("#newMenu").addEventListener("keydown", (e) => { if (e.key === "Escape") { toggleNewMenu(false); $("#tabAdd") && $("#tabAdd").focus(); } });
-window.addEventListener("resize", () => { if (!$("#newMenu").hidden) toggleNewMenu(false); });
+// 휴대폰은 키보드가 올라오고 내려갈 때도 resize 가 오므로 닫지 않고 자리만 다시 잡음
+window.addEventListener("resize", placeNewMenu);
 $("#projAdd").addEventListener("click", () => editProject("new"));
 $("#projBack").addEventListener("click", () => { $("#app").dataset.view = "list"; });
 $("#noteTitle").addEventListener("input", onEdit);
@@ -1137,7 +1148,7 @@ $("#backBtn").addEventListener("click", () => { flushSave(); $("#app").dataset.v
 $("#moreBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleNoteMenu(); });
 document.addEventListener("click", (e) => { if (!$("#noteMenu").hidden && !e.target.closest("#noteMenu")) toggleNoteMenu(false); });
 $("#noteMenu").addEventListener("keydown", (e) => { if (e.key === "Escape") { toggleNoteMenu(false); $("#moreBtn").focus(); } });
-window.addEventListener("resize", () => toggleNoteMenu(false));
+window.addEventListener("resize", placeNoteMenu);
 $("#loginBtn").addEventListener("click", login);
 LOCAL_USERS.forEach((u) => $("#gateLocalUsers").append(el("button", { class: "gbtn", onclick: () => signInLocal(u.uid), text: u.displayName + "로 들어가기" })));
 $("#devBadge").hidden = MODE !== "local";
