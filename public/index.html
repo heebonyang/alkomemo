@@ -113,8 +113,13 @@ svg { display: block; }
 .banner { padding-block: 10px; font-size: var(--fs-sm); background: var(--faint); }
 
 /* ---------- 목록 ---------- */
-.app { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); }
-.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--rail-w, 300px) minmax(0, 1fr); }
+.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; position: relative; }
+.rail-resize { position: absolute; z-index: 5; top: 0; bottom: 0; right: -4px; width: 8px; cursor: col-resize; touch-action: none; }
+.rail-resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: var(--scope); opacity: 0; transition: opacity .15s; }
+.rail-resize:hover::after, .rail-resize:focus-visible::after, .app.resizing .rail-resize::after { opacity: 1; }
+.rail-resize:focus-visible { outline: none; }
+.app.resizing { cursor: col-resize; user-select: none; }
 .rail-top, .view-head { height: var(--head); flex: none; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .new-note { width: var(--h); height: var(--h); flex: none; display: grid; place-items: center; border-radius: var(--r); background: var(--scope); color: var(--on-scope); }
 .new-note[aria-expanded="true"] { opacity: .88; }
@@ -306,6 +311,7 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   .me { margin-left: auto; }
   .app { grid-template-columns: minmax(0, 1fr); }
   .rail { border-right: 0; }
+  .rail-resize { display: none; }
   .app[data-view="list"] main { display: none; }
   .app[data-view="detail"] .rail { display: none; }
   .back { display: grid; margin-left: -8px; }
@@ -355,6 +361,7 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 
 <div class="app" id="app" data-view="list">
   <aside class="rail">
+    <div class="rail-resize" id="railResize" role="separator" aria-orientation="vertical" aria-label="목록 폭 조절" tabindex="0" title="끌어서 폭 조절 · 두 번 눌러 원래대로"></div>
     <div class="rail-top gutter">
       
       <div class="sel-bar" id="selectBar" hidden>

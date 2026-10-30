@@ -1082,6 +1082,52 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("visibilitychange", () => { if (document.hidden) flushSave(); });
 window.addEventListener("beforeunload", (e) => { if (S.dirty || S.writes) { flushSave(); e.preventDefault(); } });
 
+/* ---------- 목록 폭 조절 (데스크톱) ---------- */
+const RAIL = { def: 300, min: 220, key: "alko.railWidth" };
+const railMax = () => Math.max(RAIL.min, Math.min(640, Math.round(window.innerWidth * 0.6)));
+function setRailWidth(w, save) {
+  const v = Math.round(Math.min(railMax(), Math.max(RAIL.min, w)));
+  $("#app").style.setProperty("--rail-w", v + "px");
+  $("#railResize").setAttribute("aria-valuenow", v);
+  if (save) try { localStorage.setItem(RAIL.key, v); } catch {}
+  return v;
+}
+function initRailResize() {
+  const h = $("#railResize"), app = $("#app");
+  let saved = null;
+  try { saved = Number(localStorage.getItem(RAIL.key)) || null; } catch {}
+  let width = setRailWidth(saved || RAIL.def, false);
+  h.setAttribute("aria-valuemin", RAIL.min);
+  h.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    h.setPointerCapture(e.pointerId);
+    const x0 = e.clientX, w0 = width;
+    app.classList.add("resizing");
+    const move = (ev) => { width = setRailWidth(w0 + ev.clientX - x0, false); };
+    const up = () => {
+      app.classList.remove("resizing");
+      h.removeEventListener("pointermove", move);
+      h.removeEventListener("pointerup", up);
+      h.removeEventListener("pointercancel", up);
+      setRailWidth(width, true);
+    };
+    h.addEventListener("pointermove", move);
+    h.addEventListener("pointerup", up);
+    h.addEventListener("pointercancel", up);
+  });
+  h.addEventListener("dblclick", () => { width = setRailWidth(RAIL.def, true); });
+  h.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 40 : 10;
+    if (e.key === "ArrowLeft") width = setRailWidth(width - step, true);
+    else if (e.key === "ArrowRight") width = setRailWidth(width + step, true);
+    else return;
+    e.preventDefault();
+  });
+  window.addEventListener("resize", () => { if (width > railMax()) width = setRailWidth(width, false); });
+}
+initRailResize();
+
 onUser((u) => {
   teardown();
   if (!u) return showGate(MODE === "local" ? "local" : MODE === "claude" ? "claude" : "login");
