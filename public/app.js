@@ -389,7 +389,6 @@ function renderView() {
   const board = isSpace(S.tab) && S.board;
   $("#projView").hidden = panel || hasOpen || !board;
   $("#emptyView").hidden = panel || hasOpen || board;
-  $("#emptyTitle").textContent = S.tab === "private" ? "노트" : spaceName(S.tab);
 
 }
 
@@ -548,7 +547,6 @@ function buildPanel() {
   const box = $("#spaceBody");
   const isNew = S.panel === "new";
   const sp = !isNew && spaceById(S.panel);
-  $("#spaceTitle").textContent = isNew ? "새 공유 노트북" : "노트북 설정";
   const name = el("input", { class: "field", id: "spName", type: "text", placeholder: "예: 우리 집, 여행 준비", autocomplete: "off", maxlength: "40", value: sp ? sp.name || "" : "" });
   const inviteIn = el("input", { class: "field", id: "spInvite", type: "text", inputmode: "email", autocomplete: "off", placeholder: "구글 이메일 (여러 명은 쉼표로)" });
   const msg = el("p", { class: "fld-msg", id: "spMsg", role: "status" });
@@ -787,9 +785,7 @@ function openNote(scope, id) {
 function fillEditor(scope, n) {
   $("#noteTitle").value = n.title || "";
   $("#noteBody").value = n.body || "";
-  const pill = $("#scopePill");
-  pill.className = "scope " + scopeClass(scope);
-  pill.replaceChildren(el("span", { class: "dot" }), scope === "private" ? "노트" : spaceName(scope));
+  renderHeadTitle();
   disarm($("#delBtn"), "삭제");
   renderMeta(scope, n);
 }
@@ -815,8 +811,16 @@ function closeEditor() {
   renderRail();
 }
 
+// 위쪽 제목 칸에는 열린 노트의 제목만 보여 줌
+function renderHeadTitle() {
+  const t = $("#noteTitle").value.trim(), h = $("#headTitle");
+  h.textContent = t || "제목 없음";
+  h.classList.toggle("untitled", !t);
+}
+
 function onEdit() {
   if (!S.open) return;
+  renderHeadTitle();
   S.dirty = true;
   setStatus("입력 중…");
   clearTimeout(S.saveTimer);
