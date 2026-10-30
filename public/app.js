@@ -1038,12 +1038,13 @@ function renderProjects() {
 
 function projectRow(p) {
   const d = p.done ? { text: "완료", cls: "none" } : dday(p.deadline);
+  const sub = p.deadline ? fmtDay(p.deadline) + " 마감" : "마감 없음";
   return el("div", { class: "proj" + (p.done ? " done" : "") },
     el("button", { class: "check", "aria-pressed": String(!!p.done), "aria-label": p.done ? "진행 중으로 되돌리기" : "완료로 표시", title: p.done ? "진행 중으로 되돌리기" : "완료", onclick: () => toggleDone(p) }),
     el("span", { class: "dday " + d.cls, text: d.text }),
     el("div", { class: "proj-main" },
       el("div", { class: "proj-title", text: p.title }),
-      p.deadline ? el("div", { class: "proj-sub", text: fmtDay(p.deadline) + " 마감" }) : null),
+      el("div", { class: "proj-sub", text: sub })),
     el("span", { class: "proj-actions" },
       el("button", { class: "link", text: "수정", onclick: () => editProject(p.id) }),
       projDeleteBtn(p)));
@@ -1062,10 +1063,11 @@ function projDeleteBtn(p) {
 function projectForm(p) {
   const del = p && el("button", { type: "button", class: "link danger", text: "삭제" });
   if (del) del.addEventListener("click", () => arm(del, "한 번 더 누르면 삭제", () => removeProject(p)));
-  // 이름과 마감일만. 마감일은 비워 두면 마감 없음
   const form = el("form", { class: "proj-form" },
     el("input", { type: "text", id: "pjTitle", placeholder: "프로젝트 이름", "aria-label": "프로젝트 이름", required: true, autocomplete: "off", value: p ? p.title : "" }),
-    el("input", { type: "date", id: "pjDeadline", "aria-label": "마감일", title: "마감일", value: p ? p.deadline || "" : "" }),
+    el("div", { class: "pf-row" },
+      el("label", { for: "pjDeadline", class: "pf-label", text: "마감일" }),
+      el("input", { type: "date", id: "pjDeadline", value: p ? p.deadline || "" : "" })),
     el("div", { class: "pf-actions" },
       del, el("span", { class: "spacer" }),
       el("button", { type: "button", class: "link", text: "취소", onclick: closeProjectForm }),

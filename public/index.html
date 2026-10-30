@@ -254,10 +254,11 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .proj.done .dday { opacity: .55; }
 .proj.done .check { opacity: .7; }
 .proj-sub { font-size: var(--fs-sm); color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
-.proj-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 16px 0; border-bottom: 1px solid var(--line); }
-.proj-form #pjDeadline { width: auto; height: 44px; }
-.proj-form .pf-actions { grid-column: 1 / -1; }
+.proj-form { display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid var(--line); }
 .proj-form #pjTitle { height: 44px; font-size: var(--fs-lg); font-weight: 500; }
+.pf-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pf-row input[type="date"] { width: auto; }
+.pf-label { font-size: var(--fs-sm); color: var(--muted); min-width: 40px; }
 .pf-actions { display: flex; align-items: center; gap: 16px; padding-top: 4px; }
 .pf-actions .spacer { margin-right: auto; }
 
@@ -328,7 +329,6 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
   #noteTitle { font-size: 24px; }
   .ed-inner { padding-top: 20px; }
   .proj { grid-template-columns: 20px 48px minmax(0, 1fr) auto; gap: 10px; }
-  .proj-form { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
