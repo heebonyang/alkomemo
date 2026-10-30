@@ -22,8 +22,8 @@
   --mine: #b8730a;
   --mine-soft: #fbf1de;
   --on-mine: #ffffff;
-  --proj: #d6362f;
-  --proj-soft: #fdecea;
+  --proj: #1f8a4c;
+  --proj-soft: #e6f4ec;
   --on-proj: #ffffff;
   --danger: #c4372c;
   --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
@@ -33,9 +33,9 @@
   --head: 64px;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --proj: #ff776d; --proj-soft: #3a1917; --on-proj: #2a0c0a; --danger: #f07c72; color-scheme: dark; }
+  :root:not([data-theme="light"]) { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --proj: #4cc983; --proj-soft: #12301f; --on-proj: #06200f; --danger: #f07c72; color-scheme: dark; }
 }
-:root[data-theme="dark"] { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --proj: #ff776d; --proj-soft: #3a1917; --on-proj: #2a0c0a; --danger: #f07c72; color-scheme: dark; }
+:root[data-theme="dark"] { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --proj: #4cc983; --proj-soft: #12301f; --on-proj: #06200f; --danger: #f07c72; color-scheme: dark; }
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -244,7 +244,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .dday { color: var(--ink); }
 /* 프로젝트 화면의 버튼도 노트북 색으로 */
 #projView .btn.primary, .proj-form .btn-ink { background: var(--scope); color: var(--on-scope); }
-.dday.urgent { color: var(--proj); }
+.dday.urgent { color: var(--danger); }
 .dday.none { color: var(--muted); font-weight: 400; }
 .proj-title { font-size: var(--fs-lg); font-weight: 500; overflow-wrap: anywhere; }
 .proj.done .proj-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); text-decoration-thickness: 1px; }
