@@ -62,10 +62,42 @@ function showGate(mode) {
   $("#gate").hidden = false;
   $("#shell").hidden = true;
   document.querySelectorAll(".gate-card").forEach((c) => { c.hidden = c.dataset.gate !== mode; });
+  if (mode === "login" && INAPP) {
+    showInappHelp();
+    // 카카오톡·라인은 바로 바깥 브라우저로 넘길 수 있음 (한 번만)
+    if (/KAKAOTALK|\bLine\//i.test(UA) && !sessionStorageGet("alko.extTried")) { sessionStorageSet("alko.extTried", "1"); location.href = externalUrl(); }
+  }
 }
+function sessionStorageGet(k) { try { return sessionStorage.getItem(k); } catch { return null; } }
+function sessionStorageSet(k, v) { try { sessionStorage.setItem(k, v); } catch {} }
+
+// 카카오톡·인스타그램 등 앱 안의 브라우저에서는 구글이 로그인을 막거나, 로그인 창이 닫히면서 앱 화면까지 닫혀 버림.
+// 그래서 로그인 대신 바깥 브라우저로 열도록 안내함
+const UA = navigator.userAgent;
+const INAPP = /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|FB_IAB|\bLine\/|everytimeApp|DaumApps|BAND\/|; wv\)/i.test(UA);
+const IOS = /iPhone|iPad|iPod/i.test(UA);
+function externalUrl() {
+  const url = location.href;
+  if (/KAKAOTALK/i.test(UA)) return "kakaotalk://web/openExternal?url=" + encodeURIComponent(url);
+  if (/\bLine\//i.test(UA)) return url + (url.includes("?") ? "&" : "?") + "openExternalBrowser=1";
+  if (!IOS) return "intent://" + location.host + location.pathname + location.search + "#Intent;scheme=https;package=com.android.chrome;end";
+  return null; // 아이폰의 다른 앱은 직접 열 방법이 없어서 주소 복사로 안내
+}
+function showInappHelp() {
+  $("#loginBtn").hidden = true;
+  $("#gateInapp").hidden = false;
+  $("#openExtBtn").hidden = !externalUrl();
+  if (IOS && !externalUrl()) $("#inappHint").textContent = "오른쪽 아래(또는 위) ⋯ 메뉴에서 'Safari로 열기'를 눌러도 돼요.";
+}
+$("#openExtBtn").addEventListener("click", () => { const u = externalUrl(); if (u) location.href = u; });
+$("#copyUrlBtn").addEventListener("click", async (e) => {
+  try { await navigator.clipboard.writeText(location.href); e.currentTarget.textContent = "복사했어요. 브라우저 주소창에 붙여 넣으세요"; }
+  catch { e.currentTarget.textContent = location.href; }
+});
 
 async function login() {
   $("#gateMsg").textContent = "";
+  if (INAPP) { showInappHelp(); return; }
   try {
     await signInGoogle();
   } catch (e) {

@@ -90,6 +90,9 @@ svg { display: block; }
 .gate-card p { margin: 0; color: var(--muted); }
 .gate-users { display: flex; flex-direction: column; gap: 8px; }
 .gate-msg { color: var(--danger); font-size: var(--fs-sm); }
+.gate-inapp { display: flex; flex-direction: column; gap: 10px; }
+.gate-inapp p { font-size: var(--fs-sm); }
+.gate-inapp .gate-hint:empty { display: none; }
 
 /* ---------- 탭 바 ---------- */
 #shell { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -344,6 +347,12 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
       Google 계정으로 로그인
     </button>
     <div class="gate-msg" id="gateMsg" role="alert"></div>
+    <div class="gate-inapp" id="gateInapp" hidden>
+      <p>카카오톡 같은 앱 안에서 연 화면에서는 구글 로그인이 되지 않아요. 크롬이나 사파리 같은 브라우저에서 열어 주세요.</p>
+      <button class="btn lg" id="openExtBtn" hidden>브라우저에서 열기</button>
+      <button class="btn lg" id="copyUrlBtn">주소 복사</button>
+      <p class="gate-hint" id="inappHint"></p>
+    </div>
   </div>
   <div class="gate-card" id="gateClaude" data-gate="claude" hidden>
     <div class="wordmark"><h1>알코 노트</h1><span>ALKO NOTE</span></div>
