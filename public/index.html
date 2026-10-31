@@ -98,7 +98,9 @@ svg { display: block; }
 
 /* ---------- 탭 바 ---------- */
 #shell { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.top { display: flex; align-items: stretch; column-gap: 40px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.top { position: relative; display: flex; align-items: stretch; column-gap: 40px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+/* 노트 칸 오른쪽 경계선을 윗줄 맨 위까지 이어 그림 (데스크톱) */
+.head-line { position: absolute; top: 0; bottom: -1px; width: 1px; background: var(--line); pointer-events: none; }
 .brand, .me { height: 56px; display: flex; align-items: center; }
 .brand { gap: 8px; font-weight: 600; font-size: var(--fs-lg); letter-spacing: -0.015em; }
 .brand small { font-weight: 400; font-size: var(--fs-xs); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
@@ -110,7 +112,9 @@ svg { display: block; }
 .tab[aria-selected="true"] { color: var(--ink); font-weight: 600; }
 .tab { gap: 7px; }
 .tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--scope); }
-.me { gap: 6px; font-size: var(--fs-sm); color: var(--muted); }
+.me { gap: 4px; font-size: var(--fs-sm); color: var(--muted); }
+/* 오른쪽 아이콘 4개(+ · ⚙ · 종 · 계정)를 같은 크기, 같은 간격(4px)으로: 노트북 줄과 .me 사이 간격도 4px */
+@media (min-width: 761px) { .top > .me { margin-left: -36px; } }
 /* 알림 (종) */
 .bell-btn { position: relative; }
 .bell-btn[aria-expanded="true"] { color: var(--ink); background: var(--faint); }
@@ -142,7 +146,7 @@ svg { display: block; }
 .bell-del svg { width: 12px; height: 12px; }
 .bell-item:hover .bell-del, .bell-del:focus-visible { opacity: 1; }
 @media (hover: none) { .bell-del { opacity: 1; } }
-.acct-btn { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; margin-right: -4px; }
+.acct-btn { display: grid; place-items: center; width: var(--h); height: var(--h); border-radius: 50%; }
 .acct-btn:hover .avatar, .acct-btn[aria-expanded="true"] .avatar { box-shadow: 0 0 0 2px var(--line); }
 .avatar { display: block; border-radius: 50%; object-fit: cover; flex: none; }
 .avatar.initial { display: grid; place-items: center; background: var(--scope-soft); color: var(--scope); font-weight: 600; }
@@ -336,7 +340,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .tab { flex: none; }
 .tab-add { align-self: center; margin-left: -8px; }
 /* 노트북이 많아도 + 와 휴지통은 밀리지 않고 그 자리에 (노트북 탭만 옆으로 넘겨 봄) */
-.tab-fixed { display: flex; align-items: center; gap: 2px; flex: none; margin-left: auto; margin-right: -9px; }
+.tab-fixed { display: flex; align-items: center; gap: 4px; flex: none; margin-left: auto; }
 .tab-fixed .tab-add { margin-left: 0; }
 .acct-menu .menu-item svg { width: 16px; height: 16px; color: var(--muted); }
 .acct-menu .menu-item small { margin-left: auto; }
@@ -434,6 +438,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 
 <div id="shell" hidden>
 <header class="top gutter">
+  <span class="head-line" id="headLine" hidden></span>
   <div class="brand">알코 노트 <small>ALKO NOTE</small> <span class="dev" id="devBadge" hidden>dev</span></div>
   <div class="nb-row">
     <nav class="tabs" id="tabs" role="tablist" aria-label="노트북"></nav>

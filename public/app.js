@@ -73,7 +73,7 @@ function avatar(size) {
 function placeRight(menu, anchor, gap = 8) {
   if (menu.hidden || !anchor) return;
   const top = $(".top"), tr = top.getBoundingClientRect();
-  const line = tr.right - parseFloat(getComputedStyle(top).paddingRight);
+  const line = S.headLine || tr.right - parseFloat(getComputedStyle(top).paddingRight);
   menu.style.top = anchor.getBoundingClientRect().bottom + gap + "px";
   menu.style.left = Math.max(16, line - menu.offsetWidth) + "px";
 }
@@ -1740,11 +1740,16 @@ function initResizer({ handle, cssVar, def, min, max, key }) {
   window.addEventListener("resize", () => { if (width > max()) width = set(width, false); });
 }
 // 데스크톱: 윗줄 오른쪽 버튼들(+ · ⚙ · 종 · 계정)과 그 창들을 노트 칸 오른쪽 경계선에 맞춤 (선을 끌면 같이 움직임)
+// 아이콘은 선에서 12px 안쪽, 창(계정·알림·새 노트북)은 선에 오른쪽 끝을 맞춤
+const HEAD_GAP = 12;
 function syncHeaderEdge() {
-  const top = $(".top"), line = $("#colResize");
+  const top = $(".top"), line = $("#colResize"), mark = $("#headLine");
   const r = line && line.getBoundingClientRect();
-  if (!r || !r.width || window.matchMedia("(max-width: 760px)").matches) { top.style.paddingRight = ""; return; }
-  top.style.paddingRight = Math.max(20, Math.round(window.innerWidth - (r.left + r.width / 2))) + "px";
+  if (!r || !r.width || window.matchMedia("(max-width: 760px)").matches) { top.style.paddingRight = ""; mark.hidden = true; S.headLine = null; return; }
+  const x = Math.round(r.left + r.width / 2);
+  S.headLine = x;
+  top.style.paddingRight = Math.max(20, window.innerWidth - x + HEAD_GAP) + "px";
+  mark.hidden = false; mark.style.left = x - top.getBoundingClientRect().left + "px";
 }
 window.addEventListener("resize", syncHeaderEdge);
 initResizer({ handle: "#railResize", cssVar: "--rail-w", def: 300, min: 220, key: "alko.railWidth",
