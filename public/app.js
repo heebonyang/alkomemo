@@ -301,6 +301,7 @@ function onSpaces(list) {
       watch(projectsCol(sid), {}, (s) => { S.projects[sid] = docs(s); S.loaded["p:" + sid] = true; if (S.tab === sid) { renderProjects(); renderRail(); } }, onErr),
       watch(collection("invites"), { where: ["spaceId", "==", sid] }, (s) => {
         S.pending[sid] = docs(s);
+        renderTabs(); if (S.tab === sid) { renderView(); renderRail(); } // 초대가 생기거나 없어지면 색이 바뀜
         // 지금까지 내가 보낸 (아직 수락 전인) 초대도 기록에 남김
         for (const inv of S.pending[sid]) if (inv.invitedBy === S.uid) logActivity(`sent_${inv.id}_${inv.createdAt || 0}`, { type: "sent", email: inv.email, spaceName: inv.spaceName || "", createdAt: inv.createdAt || Date.now() });
         if (S.panel === sid) renderPanelLists();
@@ -641,7 +642,8 @@ async function removePrivate() {
 // 끄는 중 화면이 밀리지 않게 (터치)
 $("#tabs").addEventListener("touchmove", (e) => { if (S.drag && S.drag.active) e.preventDefault(); }, { passive: false });
 
-// 색 구분: 공유 노트 = 파랑, 초대 수락 대기 = 노랑, 내 노트 = 호박색
+// 색 구분: 공유 노트 = 파랑, 보낸 초대가 수락을 기다리는 중 = 노랑, 내 노트 = 호박색
+// ('공유'에 체크만 하고 초대를 아직 안 보냈으면 호박색)
 const isShared = (scope) => {
   if (scope === "private") return false;
   const sp = spaceById(scope);
@@ -649,7 +651,11 @@ const isShared = (scope) => {
 };
 // 공유가 성사됐는지: 지금 2명 이상이 함께 쓰는 노트북. 그동안은 일반 노트북으로 되돌릴 수 없음
 const isConfirmed = (sp) => !sp || (sp.members || []).length > 1;
-const scopeKind = (scope) => (!isShared(scope) ? "private" : isConfirmed(spaceById(scope)) ? "shared" : "pending");
+const scopeKind = (scope) => {
+  if (!isShared(scope)) return "private";
+  if (isConfirmed(spaceById(scope))) return "shared";
+  return (S.pending[scope] || []).length ? "pending" : "private";
+};
 const scopeClass = (scope) => "scope-" + scopeKind(scope);
 
 function renderView() {
@@ -980,7 +986,7 @@ function buildPanel() {
     : el("div", { class: "panel-sec" },
       el("label", { class: "check-row share-row" }, shareBox, el("span", { text: "공유 노트북" })),
       el("p", { class: "fld-help", text: isOwner
-        ? "체크하면 다른 사람을 초대할 수 있어요. 초대받은 사람이 수락할 때까지는 노랑(대기)으로 보이고, 수락하면 파랑 공유 노트북이 돼요. 함께 쓰는 동안에는 공유를 끌 수 없어요."
+        ? "체크하면 다른 사람을 초대할 수 있어요. 초대를 보내면 수락할 때까지 노랑(대기)으로 보이고, 수락하면 파랑 공유 노트북이 돼요. 함께 쓰는 동안에는 공유를 끌 수 없어요."
         : "공유 여부는 노트북을 만든 사람만 바꿀 수 있어요." }),
       confirmRow);
   shareBox.addEventListener("change", () => {
@@ -1339,9 +1345,12 @@ function toggleNewMenu(force) {
     fields, msg,
     el("div", { class: "panel-actions" },
       el("button", { type: "button", class: "link", text: "취소", onclick: () => toggleNewMenu(false) }), submit));
+  // 초대할 메일을 적었을 때만 노랑(대기), 아니면 호박색
+  const paintForm = () => { form.className = "nn " + (share.checked && emailIn.value.trim() ? "scope-pending" : "scope-private"); };
+  emailIn.addEventListener("input", paintForm);
   share.addEventListener("change", () => {
     fields.hidden = !share.checked;
-    form.className = "nn " + (share.checked ? "scope-pending" : "scope-private");
+    paintForm();
     msg.textContent = "";
     if (share.checked && email) emailIn.focus();
   });
