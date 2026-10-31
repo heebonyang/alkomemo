@@ -1426,7 +1426,9 @@ function trashNotes(scope, ids) {
   S.trash[scope] = [...moved, ...(S.trash[scope] || [])];
   S.swiped = null;
   renderRail();
-  for (const id of ids) queue(() => updateDoc(docIn(notesCol(scope), id), { deletedAt: now, deletedBy: S.uid }).catch((e) => setBanner(errText(e, "삭제에"))));
+  // 서버에 이미 없는 노트(다른 기기·다른 멤버가 먼저 지움)는 지우려던 결과와 같으니 실패로 알리지 않음
+  for (const id of ids) queue(() => updateDoc(docIn(notesCol(scope), id), { deletedAt: now, deletedBy: S.uid })
+    .catch((e) => { if (e && e.code !== "not-found") setBanner(errText(e, "삭제에")); }));
   showToast(ids.length > 1 ? `노트 ${ids.length}개를 휴지통으로 옮겼어요` : "휴지통으로 옮겼어요", "되돌리기", () => ids.forEach((id) => restoreNote(scope, id)));
 }
 
@@ -1444,7 +1446,8 @@ function restoreNote(scope, id) {
   S.trash[scope] = S.trash[scope].filter((x) => x.id !== id);
   S.notes[scope] = [{ ...n, deletedAt: 0 }, ...(S.notes[scope] || [])].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   renderRail();
-  queue(() => updateDoc(docIn(notesCol(scope), id), { deletedAt: 0, deletedBy: null }).catch((e) => setBanner(errText(e, "되살리기에"))));
+  queue(() => updateDoc(docIn(notesCol(scope), id), { deletedAt: 0, deletedBy: null })
+    .catch((e) => setBanner(e && e.code === "not-found" ? "이 노트는 이미 완전히 지워져서 되살릴 수 없어요." : errText(e, "되살리기에"))));
 }
 function purgeNotes(scope, ids) {
   S.trash[scope] = (S.trash[scope] || []).filter((n) => !ids.includes(n.id));
