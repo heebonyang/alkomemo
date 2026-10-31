@@ -379,12 +379,12 @@ async function acceptInvite(inv) {
     await arrayAdd(spaceRef(inv.spaceId), { members: S.uid, memberEmails: S.email });
     S.nextTab = inv.spaceId;
     await deleteDoc(docAt("invites", inv.id));
-    logActivity(`acc_${inv.id}_${Date.now()}`, { type: "accepted", uid: inv.invitedBy || "", name: inv.invitedByName || "", spaceName: inv.spaceName || "", createdAt: Date.now() });
+    logActivity(`acc_${inv.id}_${Date.now()}`, { type: "accepted", uid: inv.invitedBy || "", name: inv.invitedByName || "", email: inv.invitedByEmail || "", spaceName: inv.spaceName || "", createdAt: Date.now() });
   } catch (e) { setBanner(errText(e, "초대 수락에")); }
 }
 function declineInvite(inv) {
   deleteDoc(docAt("invites", inv.id)).catch((e) => setBanner(errText(e, "초대 거절에")));
-  logActivity(`dec_${inv.id}_${Date.now()}`, { type: "declined", uid: inv.invitedBy || "", name: inv.invitedByName || "", spaceName: inv.spaceName || "", createdAt: Date.now() });
+  logActivity(`dec_${inv.id}_${Date.now()}`, { type: "declined", uid: inv.invitedBy || "", name: inv.invitedByName || "", email: inv.invitedByEmail || "", spaceName: inv.spaceName || "", createdAt: Date.now() });
 }
 
 /* ---------- 알림 (종): 받은 초대 + 기록 ---------- */
@@ -402,17 +402,21 @@ function deleteActivity(list) {
   for (const a of list) setDoc(docAt("users", S.uid, "activity", a.id), { deleted: true, createdAt: a.createdAt || 0 }).catch(() => {});
 }
 const INCOMING = new Set(["received", "joined", "left"]);
+// 알림 문구 규칙: 사람은 굵은 닉네임 + 흐린 (이메일), 노트북은 굵은 ‘이름’, '님'은 띄어 씀
+function personBits(name, email) {
+  return [el("strong", { text: name || email || "누군가" }), name && email ? el("span", { class: "bell-mail", text: ` (${email})` }) : ""];
+}
+const bookBits = (name) => el("strong", { text: `‘${name || "노트북"}’` });
 function activityText(a) {
-  const book = `‘${a.spaceName || "노트북"}’`;
-  const who = (a.uid && a.uid !== S.uid && nameOf(a.uid)) || a.name || "누군가";
-  const mail = a.email ? ` (${a.email})` : "";
+  const who = personBits((a.uid && a.uid !== S.uid && nameOf(a.uid)) || a.name || "", a.email || "");
+  const book = bookBits(a.spaceName);
   switch (a.type) {
-    case "sent": return [`${book} 노트북에 `, el("strong", { text: a.email || "" }), " 님을 초대했어요"];
-    case "received": return [el("strong", { text: who }), `${mail}님이 ${book} 노트북에 초대했어요`];
-    case "accepted": return [`${who}님의 ${book} 노트북 초대를 수락했어요`];
-    case "declined": return [`${who}님의 ${book} 노트북 초대를 거절했어요`];
-    case "joined": return [el("strong", { text: who }), `${mail}님이 ${book} 노트북에 들어왔어요`];
-    case "left": return [el("strong", { text: who }), `${mail}님이 ${book} 노트북에서 나갔어요`];
+    case "sent": return [...personBits("", a.email), " 님을 ", book, " 노트북에 초대했어요"];
+    case "received": return [...who, " 님이 ", book, " 노트북에 초대했어요"];
+    case "accepted": return [...who, " 님의 ", book, " 노트북 초대를 수락했어요"];
+    case "declined": return [...who, " 님의 ", book, " 노트북 초대를 거절했어요"];
+    case "joined": return [...who, " 님이 ", book, " 노트북에 들어왔어요"];
+    case "left": return [...who, " 님이 ", book, " 노트북에서 나갔어요"];
     default: return [""];
   }
 }
@@ -430,8 +434,7 @@ function renderBell() {
 function fillBell() {
   const lastSeen = S.bellOpenedFrom || 0;
   const invites = S.invites.map((inv) => el("div", { class: "bell-invite" },
-    el("div", { class: "bell-text" }, el("strong", { text: inv.invitedByName || "누군가" }), inv.invitedByEmail ? ` (${inv.invitedByEmail})` : "", "님이 ",
-      el("strong", { text: `‘${inv.spaceName || "공유 노트북"}’` }), " 노트북에 초대했어요"),
+    el("div", { class: "bell-text" }, ...personBits(inv.invitedByName || "", inv.invitedByEmail || ""), " 님이 ", bookBits(inv.spaceName), " 노트북에 초대했어요"),
     el("div", { class: "bell-actions" },
       el("button", { class: "link", text: "거절", onclick: () => declineInvite(inv) }),
       el("button", { class: "btn primary", text: "수락", onclick: () => { acceptInvite(inv); toggleBell(false); } }))));
