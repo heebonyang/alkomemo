@@ -52,15 +52,12 @@ service cloud.firestore {
         && request.resource.data.members == [request.auth.uid];
       // 멤버는 이름 바꾸기·나가기 등을 할 수 있고 (다른 멤버를 빼는 것은 안 됨, 자기 자신만 나갈 수 있음),
       // 초대받은 사람은 자기 자신을 멤버로 추가하는 것만 할 수 있음.
-      // 한 번 2명 이상이 함께 쓰게 된(공유 성사) 노트북은 공유를 끄거나 성사 표시를 지울 수 없음
+      // 2명 이상이 함께 쓰는 동안에는 공유를 끌 수 없음 (다른 멤버가 다 나가 혼자 남으면 다시 끌 수 있음)
       allow update: if signedIn() && (
         (
           request.auth.uid in resource.data.members
           && resource.data.members.toSet().difference(request.resource.data.members.toSet()).hasOnly([request.auth.uid])
-          && !(
-            (resource.data.get('confirmed', false) == true || resource.data.members.size() > 1)
-            && (request.resource.data.get('shared', true) == false || (resource.data.get('confirmed', false) == true && request.resource.data.get('confirmed', false) != true))
-          )
+          && !(request.resource.data.members.size() > 1 && request.resource.data.get('shared', true) == false)
         )
         || (
           emailTrusted()

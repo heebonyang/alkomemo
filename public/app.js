@@ -275,9 +275,12 @@ function onSpaces(list) {
     if (known) for (const id of sp.members || []) if (!known.includes(id) && id !== S.uid)
       logActivity(`join_${sp.id}_${id}`, { type: "joined", uid: id, name: nameOf(id), email: (S.memberInfo[sp.id] && S.memberInfo[sp.id][id] && S.memberInfo[sp.id][id].email) || "", spaceName: sp.name || "", createdAt: Date.now() });
     S.knownMembers[sp.id] = [...(sp.members || [])];
-    // 처음으로 2명 이상이 되면 공유 성사로 표시 (나중에 다른 멤버가 다 나가도 공유 노트북으로 남음)
-    if ((sp.members || []).length > 1 && sp.confirmed !== true && !sp.pendingServer)
+    // 2명 이상이 되면 공유 성사로 표시하고, 다른 멤버가 다 나가 나만 남으면 다시 나만 쓰는 노트북으로 되돌림
+    const many = (sp.members || []).length > 1;
+    if (!sp.pendingServer && many && sp.confirmed !== true)
       updateDoc(spaceRef(sp.id), { confirmed: true, shared: true }).catch(() => {});
+    if (!sp.pendingServer && !many && sp.confirmed === true && (sp.members || [])[0] === S.uid)
+      updateDoc(spaceRef(sp.id), { confirmed: false, shared: false, updatedAt: Date.now() }).catch(() => {});
   }
   const ids = new Set(list.map((s) => s.id));
   for (const sid of Object.keys(S.spaceSubs)) {
@@ -605,8 +608,8 @@ const isShared = (scope) => {
   const sp = spaceById(scope);
   return !sp || sp.shared !== false || (sp.members || []).length > 1;
 };
-// 공유가 성사됐는지: 한 번이라도 2명 이상이 함께 쓴 노트북. 그 뒤로는 일반 노트북으로 되돌릴 수 없음
-const isConfirmed = (sp) => !sp || sp.confirmed === true || (sp.members || []).length > 1;
+// 공유가 성사됐는지: 지금 2명 이상이 함께 쓰는 노트북. 그동안은 일반 노트북으로 되돌릴 수 없음
+const isConfirmed = (sp) => !sp || (sp.members || []).length > 1;
 const scopeKind = (scope) => (!isShared(scope) ? "private" : isConfirmed(spaceById(scope)) ? "shared" : "pending");
 const scopeClass = (scope) => "scope-" + scopeKind(scope);
 
@@ -920,11 +923,11 @@ function buildPanel() {
   const shareSec = confirmed
     ? el("div", { class: "panel-sec" },
       el("div", { class: "share-state scope-shared" }, el("span", { class: "dot" }), el("strong", { text: "공유 노트북" })),
-      el("p", { class: "fld-help", text: "초대를 수락한 멤버와 함께 쓰는 공유 노트북이에요. 일반 노트북으로 되돌릴 수 없어요. 그만 쓰려면 맨 아래 ‘노트북에서 나가기’를 눌러 주세요." }))
+      el("p", { class: "fld-help", text: "초대를 수락한 멤버와 함께 쓰는 공유 노트북이에요. 함께 쓰는 동안에는 공유를 끌 수 없어요. 그만 쓰려면 맨 아래 ‘노트북에서 나가기’를 눌러 주세요. 다른 멤버가 모두 나가면 다시 나만 쓰는 노트북이 돼요." }))
     : el("div", { class: "panel-sec" },
       el("label", { class: "check-row share-row" }, shareBox, el("span", { text: "공유 노트북" })),
       el("p", { class: "fld-help", text: isOwner
-        ? "체크하면 다른 사람을 초대할 수 있어요. 초대받은 사람이 수락할 때까지는 노랑(대기)으로 보이고, 수락하면 파랑 공유 노트북이 돼요. 그 뒤에는 공유를 끌 수 없어요."
+        ? "체크하면 다른 사람을 초대할 수 있어요. 초대받은 사람이 수락할 때까지는 노랑(대기)으로 보이고, 수락하면 파랑 공유 노트북이 돼요. 함께 쓰는 동안에는 공유를 끌 수 없어요."
         : "공유 여부는 노트북을 만든 사람만 바꿀 수 있어요." }),
       confirmRow);
   shareBox.addEventListener("change", () => {
