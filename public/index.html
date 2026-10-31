@@ -315,6 +315,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .invites { display: flex; flex-direction: column; background: var(--accent-soft); }
 .invite { display: flex; align-items: center; gap: 16px; min-height: 52px; flex-wrap: wrap; padding-block: 8px; font-size: var(--fs-sm); }
 .invite + .invite { border-top: 1px solid var(--line); }
+.notices { background: var(--faint); }
 .invite-text strong { font-weight: 600; }
 .panel { display: flex; flex-direction: column; gap: 28px; padding-top: 24px; max-width: 520px; }
 .panel-sec { display: flex; flex-direction: column; gap: 8px; }
@@ -409,6 +410,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 <div class="menu acct-menu" id="acctMenu" role="dialog" aria-label="계정" hidden></div>
 <div class="banner gutter" id="banner" hidden></div>
 <div class="invites gutter" id="invites" hidden></div>
+<div class="invites notices gutter" id="notices" role="status" hidden></div>
 
 <div class="app" id="app" data-view="list">
   <aside class="rail">

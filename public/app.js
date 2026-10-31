@@ -30,6 +30,7 @@ const S = {
   tab: null, uid: null, email: null, myName: "", names: {},
   spaces: [], spacesLoaded: false, nextTab: null, migrated: false,
   notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "",
+  notices: {}, seen: {}, seenLoaded: false, draft: null,
   trashView: false, swiped: null, swipeEnd: 0, purged: {},
   invites: [], spaceSubs: {},
   open: null, dirty: false, writes: 0, chain: Promise.resolve(), saveTimer: null,
@@ -196,11 +197,12 @@ async function login() {
 
 function teardown() {
   toggleAcctMenu(false);
+  $("#notices").hidden = true;
   S.unsubs.forEach((u) => u());
   Object.values(S.spaceSubs).forEach((list) => list.forEach((u) => u()));
   Object.assign(S, {
     unsubs: [], spaceSubs: {}, uid: null, email: null, names: {}, spaces: [], spacesLoaded: false, tab: null, nextTab: null,
-    notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "", invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
+    notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "", notices: {}, seen: {}, seenLoaded: false, draft: null, invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
     panel: null, editProject: null, migrated: false, tabChosen: false, tabOrder: [], hidePrivate: false, drag: null,
   });
 }
@@ -223,6 +225,8 @@ function start(u) {
   S.unsubs.push(
     // 탭 순서는 사람마다 따로 저장 (users/<나>/prefs/tabs)
     watch(collection("users", S.uid, "prefs"), {}, (s) => {
+      const seenDoc = s.docs.find((x) => x.id === "seen");
+      S.seen = (seenDoc && seenDoc.data()) || {}; S.seenLoaded = true; renderNotices();
       const d = s.docs.find((x) => x.id === "tabs");
       S.tabOrder = (d && d.data().order) || [];
       S.hidePrivate = !!(d && d.data().hidePrivate);
@@ -256,7 +260,7 @@ function onSpaces(list) {
   for (const sid of Object.keys(S.spaceSubs)) {
     if (!ids.has(sid)) {
       S.spaceSubs[sid].forEach((u) => u());
-      delete S.spaceSubs[sid]; delete S.notes[sid]; delete S.trash[sid]; delete S.memberInfo[sid]; delete S.projects[sid]; delete S.pending[sid]; delete S.loaded[sid];
+      delete S.spaceSubs[sid]; delete S.notes[sid]; delete S.trash[sid]; delete S.memberInfo[sid]; delete S.notices[sid]; delete S.projects[sid]; delete S.pending[sid]; delete S.loaded[sid];
       if (S.open && S.open.scope === sid) { S.open = null; S.dirty = false; }
       if (S.panel === sid) S.panel = null;
     }
@@ -270,6 +274,7 @@ function onSpaces(list) {
       watch(notesCol(sid), { byUpdated: true }, (s) => onNotes(sid, docs(s), s), onErr),
       watch(projectsCol(sid), {}, (s) => { S.projects[sid] = docs(s); S.loaded["p:" + sid] = true; if (S.tab === sid) { renderProjects(); renderRail(); } }, onErr),
       watch(collection("invites"), { where: ["spaceId", "==", sid] }, (s) => { S.pending[sid] = docs(s); if (S.panel === sid) renderPanelLists(); }, () => {}),
+      watch(collection("spaces", sid, "notices"), {}, (s) => { S.notices[sid] = docs(s); renderNotices(); }, () => {}),
       // 멤버 이메일 (멤버끼리만 보임). 내 것이 없으면 적어 둠
       watch(collection("spaces", sid, "members"), {}, (s) => {
         S.memberInfo[sid] = Object.fromEntries(docs(s).map((d) => [d.id, d]));
@@ -293,6 +298,7 @@ function onSpaces(list) {
 // 휴지통: 지운 노트는 deletedAt 을 달아 두고 목록에서만 뺌. 30일이 지나면 완전히 지움
 const TRASH_DAYS = 30;
 function onNotes(scope, list, snap) {
+  if (S.draft && S.draft.scope === scope && !list.some((n) => n.id === S.draft.id)) list = [S.draft.note, ...list];
   S.notes[scope] = list.filter((n) => !n.deletedAt);
   S.trash[scope] = list.filter((n) => n.deletedAt).sort((a, b) => b.deletedAt - a.deletedAt);
   if (!snap.metadata.fromCache && !S.purged[scope]) {
@@ -533,6 +539,7 @@ function renderRail() {
   $("#listTools").hidden = S.trashView || !!S.select;
   $("#trashBar").hidden = !S.trashView;
   if (S.trashView) { renderTrash(); return; }
+  dropDraft();
   const all = S.notes[scope] || [];
   const q = S.q.trim().toLowerCase();
   const items = q ? all.filter((n) => ((n.title || "") + "\n" + (n.body || "")).toLowerCase().includes(q)) : all;
@@ -836,24 +843,26 @@ function buildPanel() {
 }
 
 // 설정창 맨 아래: 노트북 삭제(만든 사람) 또는 나가기(멤버). 누르면 경고를 보여 주고 한 번 더 확인
+// 다른 멤버와 함께 쓰는 중이면 (만든 사람이어도) '나가기'만 있고, 노트는 남은 사람들에게 그대로 남음.
+// 혼자 쓰는 노트북일 때만 '삭제'
 function deleteSection(sp) {
-  const owner = sp.owner === S.uid;
   if (orderedTabs().length <= 1) return el("div", { class: "panel-sec end" }, el("p", { class: "fld-help", text: "마지막 노트북은 지울 수 없어요." }));
+  const others = () => ((spaceById(sp.id) || sp).members || []).filter((id) => id !== S.uid);
+  const leave = sp.id !== "private" && (others().length > 0 || sp.owner !== S.uid);
   const warn = el("div", { class: "share-confirm delete-confirm", role: "alert", hidden: true });
-  const btn = el("button", { type: "button", class: "link danger strong", text: owner ? "노트북 삭제" : "노트북 나가기" });
+  const btn = el("button", { type: "button", class: "link danger strong", text: leave ? "노트북에서 나가기" : "노트북 삭제" });
   btn.addEventListener("click", () => {
     const n = (S.notes[sp.id] || []).length + (S.trash[sp.id] || []).length;
     const p = (S.projects[sp.id] || []).length;
-    const others = ((spaceById(sp.id) || sp).members || []).filter((id) => id !== S.uid).length;
-    const text = owner
-      ? `이 노트북을 지우면 안에 있는 모든 노트(${n}개)${p ? `와 프로젝트(${p}개)` : ""}도 함께 지워지고, 되살릴 수 없어요.${others ? " 함께 쓰는 멤버에게서도 사라져요." : ""} 그래도 삭제할까요?`
-      : "나가면 이 노트북의 노트를 더 볼 수 없어요. 다시 들어오려면 초대를 받아야 해요. 그래도 나갈까요?";
+    const text = leave
+      ? "나가면 이 노트북을 더 볼 수 없어요. 노트는 지워지지 않고 남은 멤버들이 계속 쓸 수 있어요. 다시 들어오려면 초대를 받아야 해요. 그래도 나갈까요?"
+      : `이 노트북을 지우면 안에 있는 모든 노트(${n}개)${p ? `와 프로젝트(${p}개)` : ""}도 함께 지워지고, 되살릴 수 없어요. 그래도 삭제할까요?`;
     warn.replaceChildren(
       el("span", { text }),
       el("span", { class: "grow" }),
       el("button", { type: "button", class: "link", text: "취소", onclick: () => { warn.hidden = true; btn.hidden = false; } }),
-      el("button", { type: "button", class: "btn danger-btn", text: owner ? "삭제" : "나가기",
-        onclick: () => (sp.id === "private" ? removePrivate() : owner ? removeSpace(spaceById(sp.id) || sp) : leaveSpace(spaceById(sp.id) || sp)) }));
+      el("button", { type: "button", class: "btn danger-btn", text: leave ? "나가기" : "삭제",
+        onclick: () => (sp.id === "private" ? removePrivate() : leave ? leaveSpace(spaceById(sp.id) || sp) : removeSpace(spaceById(sp.id) || sp)) }));
     warn.hidden = false; btn.hidden = true;
   });
   return el("div", { class: "panel-sec end" }, btn, warn);
@@ -970,14 +979,44 @@ async function setShared(sp, on) {
   } catch (e) { setBanner(errText(e, "공유 설정 저장에")); }
 }
 
+// 나가기: 남은 멤버에게 알림을 남기고, 만든 사람이 나가면 관리 권한을 남은 멤버에게 넘김. 노트는 그대로 둠
 async function leaveSpace(sp) {
   try {
     const fields = { members: S.uid };
     if (S.email) fields.memberEmails = S.email;
     S.panel = null;
+    const rest = (sp.members || []).filter((id) => id !== S.uid);
+    await addDoc(collection("spaces", sp.id, "notices"), { type: "left", uid: S.uid, name: myLabel(), email: S.email || "", createdAt: Date.now() }).catch(() => {});
+    if (sp.owner === S.uid && rest.length) await updateDoc(spaceRef(sp.id), { owner: rest[0], updatedAt: Date.now() });
     await deleteDoc(docAt("spaces", sp.id, "members", S.uid)).catch(() => {});
     await arrayRemove(spaceRef(sp.id), fields);
   } catch (e) { setBanner(errText(e, "나가기에")); }
+}
+
+/* ---------- 알림: 누가 공유 노트북에서 나갔는지 ---------- */
+// 노트북마다 '여기까지 봤음' 시각을 사람별로 저장 (users/<나>/prefs/seen). 처음 보는 노트북은 지금부터 셈
+function renderNotices() {
+  const box = $("#notices");
+  if (!S.seenLoaded) { box.hidden = true; return; }
+  const list = [];
+  for (const sp of S.spaces) {
+    const seen = S.seen[sp.id];
+    if (seen === undefined) { markSeen(sp.id, Date.now()); continue; }
+    for (const n of S.notices[sp.id] || []) if (n.createdAt > seen && n.uid !== S.uid) list.push({ ...n, sid: sp.id, spaceName: sp.name });
+  }
+  box.hidden = !list.length;
+  box.replaceChildren(...list.sort((a, b) => a.createdAt - b.createdAt).map((n) => el("div", { class: "invite notice" },
+    el("span", { class: "invite-text" },
+      el("strong", { text: n.name || "멤버" }), n.email ? ` (${n.email})` : "", "님이 ",
+      el("strong", { text: `‘${n.spaceName || "공유 노트북"}’` }), ` 노트북에서 나갔어요 · ${fmtStamp.format(n.createdAt)}`),
+    el("span", { class: "grow" }),
+    el("button", { class: "link", text: "확인", onclick: () => markSeen(n.sid, n.createdAt) }))));
+}
+function markSeen(sid, ts) {
+  if (!S.uid) return;
+  S.seen = { ...S.seen, [sid]: Math.max(ts, S.seen[sid] || 0) };
+  setDoc(docAt("users", S.uid, "prefs", "seen"), S.seen).catch(() => {});
+  renderNotices();
 }
 // 노트북 삭제: 안의 노트·프로젝트·보낸 초대도 함께 지움 (만든 사람만)
 async function removeSpace(sp) {
@@ -1065,6 +1104,22 @@ function flushSave() {
   const { scope, id } = S.open;
   const ref = docIn(notesCol(scope), id);
   const data = { title: $("#noteTitle").value, body: $("#noteBody").value, updatedAt: Date.now(), updatedBy: S.uid };
+  const draft = S.draft && S.draft.id === id ? S.draft : null;
+  if (draft) {
+    if (!data.title.trim() && !data.body.trim()) { setStatus(""); return S.chain; } // 아직 빈 노트: 저장 안 함
+    S.draft = null;
+    const first = { ...draft.note, ...data };
+    setStatus("저장 중…");
+    return queue(async () => {
+      try {
+        await setDoc(ref, first);
+        if (S.open && S.open.id === id && !S.dirty) setStatus("저장됨 · " + fmtClock.format(Date.now()));
+      } catch (e) {
+        if (S.open && S.open.id === id) { S.dirty = true; S.draft = draft; }
+        setStatus(errText(e, "노트 만들기에"));
+      }
+    });
+  }
   setStatus("저장 중…");
   return queue(async () => {
     try {
@@ -1138,10 +1193,13 @@ function createNote(target) {
   if (!S.uid) return;
   flushSave();
   if (scope !== S.tab) { S.tab = scope; S.tabChosen = true; S.panel = null; closeSearch(); renderTabs(); if (isSpace(scope)) renderProjects(); }
+  dropDraft();
   const ref = docIn(notesCol(scope));
   const now = Date.now();
   const data = { title: "", body: "", createdBy: S.uid, updatedBy: S.uid, createdAt: now, updatedAt: now };
-  S.notes[scope] = [{ id: ref.id, ...data }, ...(S.notes[scope] || [])];
+  // 새 노트는 아직 저장하지 않음: 제목이나 내용을 한 글자라도 쓰면 그때 처음 저장 (빈 노트가 쌓이지 않게)
+  S.draft = { scope, id: ref.id, note: { id: ref.id, ...data } };
+  S.notes[scope] = [S.draft.note, ...(S.notes[scope] || [])];
   S.open = { scope, id: ref.id }; S.dirty = false; S.panel = null;
   fillEditor(scope, { ...data, updatedAt: 0 });
   setStatus("");
@@ -1149,7 +1207,14 @@ function createNote(target) {
   $("#app").dataset.view = "detail";
   renderRail();
   $("#noteTitle").focus();
-  queue(() => setDoc(ref, data).catch((e) => setStatus(errText(e, "노트 만들기에"))));
+}
+
+// 아무것도 안 쓰고 떠난 새 노트는 목록에서 없앰 (저장된 적이 없으니 지울 것도 없음)
+function dropDraft() {
+  const d = S.draft;
+  if (!d || (S.open && S.open.id === d.id)) return;
+  S.draft = null;
+  S.notes[d.scope] = (S.notes[d.scope] || []).filter((n) => n.id !== d.id);
 }
 
 function arm(btn, label, action) {
@@ -1166,12 +1231,20 @@ function deleteOpen() {
   const { scope, id } = S.open;
   clearTimeout(S.saveTimer);
   S.dirty = false;
+  if (S.draft && S.draft.id === id) { S.draft = null; S.notes[scope] = (S.notes[scope] || []).filter((n) => n.id !== id); closeEditor(); return; } // 저장 전 새 노트는 그냥 버림
   closeEditor();
   trashNotes(scope, [id]);
 }
 
 // 휴지통으로 보내기 / 되살리기 / 완전히 지우기
 function trashNotes(scope, ids) {
+  if (S.draft && ids.includes(S.draft.id)) {
+    const d = S.draft; S.draft = null;
+    S.notes[d.scope] = (S.notes[d.scope] || []).filter((n) => n.id !== d.id);
+    ids = ids.filter((id) => id !== d.id);
+    if (S.open && S.open.id === d.id) { S.open = null; S.dirty = false; renderView(); $("#app").dataset.view = "list"; }
+    if (!ids.length) { renderRail(); return; }
+  }
   if (S.open && S.open.scope === scope && ids.includes(S.open.id)) { clearTimeout(S.saveTimer); S.dirty = false; S.open = null; renderView(); $("#app").dataset.view = "list"; }
   const now = Date.now();
   const moved = (S.notes[scope] || []).filter((n) => ids.includes(n.id)).map((n) => ({ ...n, deletedAt: now, deletedBy: S.uid }));
@@ -1257,6 +1330,7 @@ async function moveOpen(target) {
   };
   clearTimeout(S.saveTimer);
   S.dirty = false;
+  if (S.draft && S.draft.id === id) S.draft = null;
   const from = docIn(notesCol(scope), id), to = docIn(notesCol(target));
   S.notes[scope] = (S.notes[scope] || []).filter((x) => x.id !== id);
   S.notes[target] = [{ id: to.id, ...data }, ...(S.notes[target] || [])];
@@ -1413,7 +1487,12 @@ $("#projBack").addEventListener("click", () => { $("#app").dataset.view = "list"
 $("#noteTitle").addEventListener("input", onEdit);
 $("#noteBody").addEventListener("input", onEdit);
 $("#noteTitle").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#noteBody").focus(); } });
-$("#backBtn").addEventListener("click", () => { flushSave(); $("#app").dataset.view = "list"; });
+$("#backBtn").addEventListener("click", () => {
+  flushSave();
+  // 아무것도 안 쓴 새 노트에서 뒤로 가면 그 노트는 없던 것으로
+  if (S.draft && S.open && S.draft.id === S.open.id) { S.open = null; S.dirty = false; renderView(); renderRail(); }
+  $("#app").dataset.view = "list";
+});
 $("#moreBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleNoteMenu(); });
 document.addEventListener("click", (e) => { if (!$("#noteMenu").hidden && !e.target.closest("#noteMenu")) toggleNoteMenu(false); });
 $("#noteMenu").addEventListener("keydown", (e) => { if (e.key === "Escape") { toggleNoteMenu(false); $("#moreBtn").focus(); } });
