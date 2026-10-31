@@ -121,6 +121,14 @@ svg { display: block; }
 .acct-status { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: var(--fs-sm); }
 .acct-on { width: 7px; height: 7px; border-radius: 50%; background: #2e9e5b; flex: none; }
 .acct-meta { padding: 4px 8px 8px 23px; font-size: var(--fs-xs); color: var(--muted); }
+.acct-nick { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px 10px; }
+.acct-nick .fld-row { display: flex; gap: 8px; }
+.acct-nick .field { flex: 1; min-width: 0; }
+.acct-nick .fld-msg:empty { display: none; }
+.person-id { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.person-email { font-size: var(--fs-xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.person-email:empty { display: none; }
+.nn-me strong { color: var(--ink); font-weight: 600; }
 .banner { padding-block: 10px; font-size: var(--fs-sm); background: var(--faint); }
 
 /* ---------- 목록 ---------- */

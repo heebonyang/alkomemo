@@ -29,7 +29,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+$/;
 const S = {
   tab: null, uid: null, email: null, myName: "", names: {},
   spaces: [], spacesLoaded: false, nextTab: null, migrated: false,
-  notes: {}, trash: {}, projects: {}, pending: {}, loaded: {},
+  notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "",
   trashView: false, swiped: null, swipeEnd: 0, purged: {},
   invites: [], spaceSubs: {},
   open: null, dirty: false, writes: 0, chain: Promise.resolve(), saveTimer: null,
@@ -55,14 +55,17 @@ function errText(e, what) {
 }
 function setBanner(text) { const b = $("#banner"); b.textContent = text; b.hidden = !text; }
 function setStatus(text) { $("#status").textContent = text; }
-const who = (id) => (id && id === S.uid ? "나" : (S.names[id] && S.names[id].name) || "상대방");
+// 보여 줄 이름: 닉네임이 있으면 닉네임, 없으면 구글 이름
+const nameOf = (id) => (S.names[id] && (S.names[id].nick || S.names[id].name)) || "";
+const myLabel = () => S.myNick || S.myName;
+const who = (id) => (id && id === S.uid ? "나" : nameOf(id) || "상대방");
 const docs = (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
 /* ---------- 계정 ---------- */
 // 프로필 사진이 없으면 이름 첫 글자로
 function avatar(size) {
   if (S.photo) return el("img", { class: "avatar", src: S.photo, alt: "", referrerpolicy: "no-referrer", width: size, height: size });
-  return el("span", { class: "avatar initial", style: `width:${size}px;height:${size}px;font-size:${Math.round(size * 0.45)}px`, text: (S.myName || "?").trim().charAt(0).toUpperCase() });
+  return el("span", { class: "avatar initial", style: `width:${size}px;height:${size}px;font-size:${Math.round(size * 0.45)}px`, text: (myLabel() || "?").trim().charAt(0).toUpperCase() });
 }
 function placeAcctMenu() {
   const menu = $("#acctMenu"), btn = $("#acctBtn");
@@ -82,8 +85,9 @@ function toggleAcctMenu(force) {
   menu.replaceChildren(...[
     el("div", { class: "acct-head" }, avatar(44),
       el("div", { class: "acct-who" },
-        el("strong", { text: S.myName }),
+        el("strong", { text: myLabel() }),
         S.email && el("span", { class: "acct-email", text: S.email }))),
+    MODE !== "claude" && nickForm(),
     el("div", { class: "acct-status" }, el("span", { class: "acct-on" }), how),
     el("div", { class: "acct-meta", text: `노트북 ${books}개` + (shared ? ` · 공유 ${shared}개` : "") }),
     MODE !== "claude" && el("div", { class: "menu-sep" }),
@@ -95,6 +99,48 @@ function toggleAcctMenu(force) {
 document.addEventListener("click", (e) => { if (!$("#acctMenu").hidden && !e.target.closest("#acctMenu")) toggleAcctMenu(false); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#acctMenu").hidden) { toggleAcctMenu(false); $("#acctBtn") && $("#acctBtn").focus(); } });
 window.addEventListener("resize", placeAcctMenu);
+
+// 닉네임: 2~16자, 한글·영문·숫자·_ . -  (대소문자만 다른 닉네임도 같은 것으로 봄)
+const NICK_RE = /^[가-힣a-zA-Z0-9_][가-힣a-zA-Z0-9_.-]{1,15}$/;
+function nickForm() {
+  const input = el("input", { class: "field", id: "nickIn", type: "text", maxlength: "16", autocomplete: "off", placeholder: "닉네임 (2~16자)", value: S.myNick, "aria-label": "닉네임" });
+  const save = el("button", { class: "btn", type: "submit", text: "저장" });
+  const msg = el("p", { class: "fld-msg", id: "nickMsg", role: "status" });
+  const form = el("form", { class: "acct-nick" },
+    el("label", { class: "fld-label", for: "nickIn", text: "닉네임" }),
+    el("div", { class: "fld-row" }, input, save), msg);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    save.disabled = true;
+    const r = await setNickname(input.value);
+    save.disabled = false;
+    if (r.ok) { $("#acctBtn").replaceChildren(avatar(32)); toggleAcctMenu(true); } // 창 안의 이름·아이콘도 새로
+    const m = $("#nickMsg"); m.textContent = r.text; m.classList.toggle("bad", !r.ok);
+  });
+  return form;
+}
+async function setNickname(raw) {
+  const nick = raw.trim();
+  const old = S.myNick, oldKey = old.toLowerCase(), key = nick.toLowerCase();
+  if (nick === old) return { ok: true, text: nick ? "지금 쓰는 닉네임이에요." : "" };
+  if (nick && (!NICK_RE.test(nick) || nick.startsWith("__"))) return { ok: false, text: "2~16자의 한글, 영문, 숫자, _ . - 만 쓸 수 있어요." };
+  try {
+    if (nick && key !== oldKey) {
+      const cur = await getDoc(docAt("nicknames", key));
+      if (cur.exists && cur.data.uid !== S.uid) return { ok: false, text: "이미 다른 사람이 쓰는 닉네임이에요." };
+      // 자리 잡기: 이미 누가 잡았으면 서버가 거절함 (동시에 같은 닉네임을 정해도 한 사람만 성공)
+      if (!cur.exists) {
+        try { await setDoc(docAt("nicknames", key), { uid: S.uid }); }
+        catch (e) { return { ok: false, text: e.code === "permission-denied" ? "이미 다른 사람이 쓰는 닉네임이에요." : errText(e, "닉네임 저장에") }; }
+      }
+    }
+    await setDoc(docAt("profiles", S.uid), { name: S.myName, nick }, { merge: true });
+    S.myNick = nick;
+    if (old && oldKey !== key) deleteDoc(docAt("nicknames", oldKey)).catch(() => {});
+    renderAll();
+    return { ok: true, text: nick ? "닉네임을 저장했어요." : "닉네임을 지웠어요. 구글 이름으로 보여요." };
+  } catch (e) { return { ok: false, text: errText(e, "닉네임 저장에") }; }
+}
 
 /* ---------- auth gate ---------- */
 function showGate(mode) {
@@ -154,7 +200,7 @@ function teardown() {
   Object.values(S.spaceSubs).forEach((list) => list.forEach((u) => u()));
   Object.assign(S, {
     unsubs: [], spaceSubs: {}, uid: null, email: null, names: {}, spaces: [], spacesLoaded: false, tab: null, nextTab: null,
-    notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
+    notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "", invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
     panel: null, editProject: null, migrated: false, tabChosen: false, tabOrder: [], hidePrivate: false, drag: null,
   });
 }
@@ -163,6 +209,7 @@ function start(u) {
   S.uid = u.uid;
   S.email = (u.email || "").toLowerCase() || null;
   S.myName = u.displayName || u.email || "나";
+  S.myNick = "";
   $("#gate").hidden = true;
   $("#shell").hidden = false;
   S.photo = u.photoURL || "";
@@ -187,6 +234,8 @@ function start(u) {
     }, () => {}),
     watch(collection("profiles"), {}, (s) => {
       S.names = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
+      const mine = S.names[S.uid];
+      if (mine && MODE !== "claude" && (mine.nick || "") !== S.myNick) { S.myNick = mine.nick || ""; if ($("#acctBtn")) $("#acctBtn").replaceChildren(avatar(32)); }
       renderRail();
       if (S.panel) renderPanelLists();
       if (S.open) { const n = (S.notes[S.open.scope] || []).find((x) => x.id === S.open.id); if (n) renderMeta(S.open.scope, n); }
@@ -207,7 +256,7 @@ function onSpaces(list) {
   for (const sid of Object.keys(S.spaceSubs)) {
     if (!ids.has(sid)) {
       S.spaceSubs[sid].forEach((u) => u());
-      delete S.spaceSubs[sid]; delete S.notes[sid]; delete S.trash[sid]; delete S.projects[sid]; delete S.pending[sid]; delete S.loaded[sid];
+      delete S.spaceSubs[sid]; delete S.notes[sid]; delete S.trash[sid]; delete S.memberInfo[sid]; delete S.projects[sid]; delete S.pending[sid]; delete S.loaded[sid];
       if (S.open && S.open.scope === sid) { S.open = null; S.dirty = false; }
       if (S.panel === sid) S.panel = null;
     }
@@ -221,6 +270,12 @@ function onSpaces(list) {
       watch(notesCol(sid), { byUpdated: true }, (s) => onNotes(sid, docs(s), s), onErr),
       watch(projectsCol(sid), {}, (s) => { S.projects[sid] = docs(s); S.loaded["p:" + sid] = true; if (S.tab === sid) { renderProjects(); renderRail(); } }, onErr),
       watch(collection("invites"), { where: ["spaceId", "==", sid] }, (s) => { S.pending[sid] = docs(s); if (S.panel === sid) renderPanelLists(); }, () => {}),
+      // 멤버 이메일 (멤버끼리만 보임). 내 것이 없으면 적어 둠
+      watch(collection("spaces", sid, "members"), {}, (s) => {
+        S.memberInfo[sid] = Object.fromEntries(docs(s).map((d) => [d.id, d]));
+        if (!s.metadata.fromCache && S.email && !S.memberInfo[sid][S.uid]) setDoc(docAt("spaces", sid, "members", S.uid), { email: S.email }).catch(() => {});
+        if (S.panel === sid) renderPanelLists();
+      }, () => {}),
     ];
   }
   // 노트북을 모두 지워서 '노트'가 다시 나타났으면, 그 뒤로는 계속 보이게
@@ -281,7 +336,7 @@ function renderInvites() {
   box.hidden = !S.invites.length;
   box.replaceChildren(...S.invites.map((inv) => el("div", { class: "invite" },
     el("span", { class: "invite-text" },
-      el("strong", { text: inv.invitedByName || "누군가" }), "님이 ",
+      el("strong", { text: inv.invitedByName || "누군가" }), inv.invitedByEmail ? ` (${inv.invitedByEmail})` : "", "님이 ",
       el("strong", { text: `‘${inv.spaceName || "공유 노트북"}’` }), " 노트북에 초대했어요"),
     el("span", { class: "grow" }),
     el("button", { class: "link", text: "거절", onclick: () => declineInvite(inv) }),
@@ -807,8 +862,11 @@ function deleteSection(sp) {
 function renderPanelLists() {
   const sp = spaceById(S.panel);
   if (!sp || !$("#spMembers")) return;
+  const info = S.memberInfo[sp.id] || {};
   $("#spMembers").replaceChildren(...(sp.members || []).map((id) => el("div", { class: "person" },
-    el("span", { class: "person-name", text: id === S.uid ? `${S.myName} (나)` : (S.names[id] && S.names[id].name) || "멤버" }),
+    el("span", { class: "person-id" },
+      el("span", { class: "person-name", text: id === S.uid ? `${myLabel()} (나)` : nameOf(id) || "멤버" }),
+      el("span", { class: "person-email", text: id === S.uid ? S.email || "" : (info[id] && info[id].email) || "" })),
     el("span", { class: "person-meta", text: id === sp.owner ? "만든 사람" : "" }))));
   const pend = S.pending[sp.id] || [];
   if (!$("#spPending")) return;
@@ -885,7 +943,7 @@ async function sendInvites(sid, raw, nameOverride) {
     for (const email of todo) {
       await setDoc(inviteRef(sid, email), {
         spaceId: sid, spaceName: nameOverride || sp.name || "공유 노트북", email,
-        invitedBy: S.uid, invitedByName: S.myName, createdAt: Date.now(),
+        invitedBy: S.uid, invitedByName: myLabel(), invitedByEmail: S.email || "", createdAt: Date.now(),
       });
     }
     setMsg(todo.length ? `${todo.join(", ")} 님에게 초대장을 보냈어요.` + (skip.length ? ` (${skip.join(", ")}는 이미 멤버예요)` : "") : "이미 멤버인 사람이에요.", !todo.length);
@@ -917,6 +975,7 @@ async function leaveSpace(sp) {
     const fields = { members: S.uid };
     if (S.email) fields.memberEmails = S.email;
     S.panel = null;
+    await deleteDoc(docAt("spaces", sp.id, "members", S.uid)).catch(() => {});
     await arrayRemove(spaceRef(sp.id), fields);
   } catch (e) { setBanner(errText(e, "나가기에")); }
 }
@@ -930,6 +989,7 @@ async function removeSpace(sp) {
     for (const n of notes) await deleteDoc(docIn(notesCol(sid), n.id));
     for (const pj of projects) await deleteDoc(docIn(projectsCol(sid), pj.id));
     for (const inv of invites) await deleteDoc(docAt("invites", inv.id));
+    for (const mid of Object.keys(S.memberInfo[sid] || {})) await deleteDoc(docAt("spaces", sid, "members", mid));
     await deleteDoc(spaceRef(sid));
   } catch (e) { setBanner(errText(e, "노트북 삭제에")); }
 }
@@ -1040,7 +1100,9 @@ function toggleNewMenu(force) {
   const share = el("input", { type: "checkbox", id: "nnShare" });
   const emailIn = el("input", { class: "field", id: "nnInvite", type: "text", inputmode: "email", autocomplete: "off", placeholder: "초대할 구글 이메일 (여러 명은 쉼표로)", "aria-label": "초대할 사람" });
   const fields = el("div", { class: "nn-fields", hidden: true },
-    email ? emailIn : el("p", { class: "fld-help", text: "만든 뒤 사람 아이콘에서 참여 코드를 복사해 보내 주세요." }));
+    email ? emailIn : el("p", { class: "fld-help", text: "만든 뒤 사람 아이콘에서 참여 코드를 복사해 보내 주세요." }),
+    // 초대받는 사람에게 내가 어떻게 보이는지 (닉네임 + 구글 메일)
+    email && el("p", { class: "fld-help nn-me" }, "받는 사람에게는 ", el("strong", { text: myLabel() }), S.email ? ` (${S.email})` : "", " 님의 초대로 보여요."));
   const msg = el("p", { class: "fld-msg", role: "status" });
   const submit = el("button", { class: "btn primary", type: "submit", text: "만들기" });
   const form = el("form", { class: "nn scope-private" },
