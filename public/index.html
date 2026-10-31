@@ -109,7 +109,18 @@ svg { display: block; }
 .tab { gap: 7px; }
 .tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--scope); }
 .me { gap: 16px; font-size: var(--fs-sm); color: var(--muted); }
-.me img { width: 24px; height: 24px; border-radius: 50%; }
+.acct-btn { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; margin-right: -4px; }
+.acct-btn:hover .avatar, .acct-btn[aria-expanded="true"] .avatar { box-shadow: 0 0 0 2px var(--line); }
+.avatar { display: block; border-radius: 50%; object-fit: cover; flex: none; }
+.avatar.initial { display: grid; place-items: center; background: var(--scope-soft); color: var(--scope); font-weight: 600; }
+.acct-menu { width: 280px; min-width: 0; padding: 8px; }
+.acct-head { display: flex; align-items: center; gap: 12px; padding: 8px 8px 12px; }
+.acct-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.acct-who strong { font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-email { font-size: var(--fs-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-status { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: var(--fs-sm); }
+.acct-on { width: 7px; height: 7px; border-radius: 50%; background: #2e9e5b; flex: none; }
+.acct-meta { padding: 4px 8px 8px 23px; font-size: var(--fs-xs); color: var(--muted); }
 .banner { padding-block: 10px; font-size: var(--fs-sm); background: var(--faint); }
 
 /* ---------- 목록 ---------- */
@@ -387,6 +398,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 </header>
 <div class="menu" id="newMenu" role="dialog" aria-label="새 노트북 만들기" hidden></div>
 <div class="menu note-menu" id="noteMenu" role="menu" aria-label="노트 메뉴" hidden></div>
+<div class="menu acct-menu" id="acctMenu" role="dialog" aria-label="계정" hidden></div>
 <div class="banner gutter" id="banner" hidden></div>
 <div class="invites gutter" id="invites" hidden></div>
 

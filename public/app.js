@@ -58,6 +58,44 @@ function setStatus(text) { $("#status").textContent = text; }
 const who = (id) => (id && id === S.uid ? "나" : (S.names[id] && S.names[id].name) || "상대방");
 const docs = (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
+/* ---------- 계정 ---------- */
+// 프로필 사진이 없으면 이름 첫 글자로
+function avatar(size) {
+  if (S.photo) return el("img", { class: "avatar", src: S.photo, alt: "", referrerpolicy: "no-referrer", width: size, height: size });
+  return el("span", { class: "avatar initial", style: `width:${size}px;height:${size}px;font-size:${Math.round(size * 0.45)}px`, text: (S.myName || "?").trim().charAt(0).toUpperCase() });
+}
+function placeAcctMenu() {
+  const menu = $("#acctMenu"), btn = $("#acctBtn");
+  if (menu.hidden || !btn) return;
+  const r = btn.getBoundingClientRect();
+  menu.style.top = r.bottom + 8 + "px";
+  menu.style.left = Math.max(16, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16)) + "px";
+}
+function toggleAcctMenu(force) {
+  const menu = $("#acctMenu"), btn = $("#acctBtn");
+  const open = force !== undefined ? force : menu.hidden;
+  menu.hidden = !open;
+  if (btn) btn.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  const how = MODE === "firebase" ? "Google 계정으로 로그인됨" : MODE === "local" ? "개발 모드 · 이 브라우저에만 저장" : "claude.ai 계정으로 로그인됨";
+  const books = orderedTabs().length, shared = S.spaces.filter((sp) => isShared(sp.id)).length;
+  menu.replaceChildren(...[
+    el("div", { class: "acct-head" }, avatar(44),
+      el("div", { class: "acct-who" },
+        el("strong", { text: S.myName }),
+        S.email && el("span", { class: "acct-email", text: S.email }))),
+    el("div", { class: "acct-status" }, el("span", { class: "acct-on" }), how),
+    el("div", { class: "acct-meta", text: `노트북 ${books}개` + (shared ? ` · 공유 ${shared}개` : "") }),
+    MODE !== "claude" && el("div", { class: "menu-sep" }),
+    MODE !== "claude" && el("button", { type: "button", class: "menu-item", role: "menuitem",
+      onclick: async () => { toggleAcctMenu(false); flushSave(); await S.chain; logOut(); } }, MODE === "local" ? "사용자 바꾸기" : "로그아웃"),
+  ].filter(Boolean));
+  placeAcctMenu();
+}
+document.addEventListener("click", (e) => { if (!$("#acctMenu").hidden && !e.target.closest("#acctMenu")) toggleAcctMenu(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#acctMenu").hidden) { toggleAcctMenu(false); $("#acctBtn") && $("#acctBtn").focus(); } });
+window.addEventListener("resize", placeAcctMenu);
+
 /* ---------- auth gate ---------- */
 function showGate(mode) {
   $("#gate").hidden = false;
@@ -111,6 +149,7 @@ async function login() {
 }
 
 function teardown() {
+  toggleAcctMenu(false);
   S.unsubs.forEach((u) => u());
   Object.values(S.spaceSubs).forEach((list) => list.forEach((u) => u()));
   Object.assign(S, {
@@ -126,11 +165,10 @@ function start(u) {
   S.myName = u.displayName || u.email || "나";
   $("#gate").hidden = true;
   $("#shell").hidden = false;
-  $("#me").replaceChildren(...[
-    u.photoURL && el("img", { src: u.photoURL, alt: "", referrerpolicy: "no-referrer" }),
-    el("span", { text: S.myName }),
-    MODE !== "claude" && el("button", { class: "link", onclick: async () => { flushSave(); await S.chain; logOut(); }, text: MODE === "local" ? "사용자 바꾸기" : "로그아웃" }),
-  ].filter(Boolean));
+  S.photo = u.photoURL || "";
+  // 오른쪽 위: 계정 아이콘 하나. 누르면 로그인 상태 창
+  $("#me").replaceChildren(el("button", { class: "acct-btn", id: "acctBtn", "aria-label": `계정: ${S.myName}`, title: S.myName, "aria-haspopup": "dialog", "aria-expanded": "false",
+    onclick: (e) => { e.stopPropagation(); toggleAcctMenu(); } }, avatar(32)));
   setDoc(docAt("profiles", u.uid), { name: S.myName }, { merge: true }).catch(() => {});
 
   const onErr = (e) => setBanner(errText(e, "불러오기에"));
