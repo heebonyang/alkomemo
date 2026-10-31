@@ -18,14 +18,13 @@ function el(tag, props = {}, ...kids) {
   }
   return e;
 }
-const pad = (n) => String(n).padStart(2, "0");
 const parseYmd = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
 const fmtStamp = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
 const fmtClock = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
 const EMAIL_RE = /^[^\s@]+@[^\s@]+$/;
 
-// 탭(S.tab)과 범위(scope)는 공유 노트 id 또는 "private"(내 노트)
+// 탭(S.tab)과 범위(scope)는 노트북(spaces) id 또는 "private"(기본 노트북 '노트')
 const S = {
   tab: null, uid: null, email: null, myName: "", names: {},
   spaces: [], spacesLoaded: false, nextTab: null, migrated: false,
@@ -271,7 +270,7 @@ function start(u) {
   renderAll();
 }
 
-// 내가 속한 공유 노트 목록이 바뀌면 각 공유 노트의 노트/프로젝트/일정 구독을 맞춤
+// 내가 속한 노트북 목록이 바뀌면 노트북마다 노트·프로젝트·초대·알림·멤버 구독을 맞춤
 function onSpaces(list) {
   S.spaces = list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   // 내 노트북에 누가 새로 들어오면 기록 (앱을 켜 둔 동안 본 것)
@@ -351,9 +350,10 @@ function onNotes(scope, list, snap) {
   if (S.tab === scope || S.trashView) renderRail();
 }
 
-// 예전 버전(공유 노트가 하나뿐이던 때)의 데이터를 "공유 노트"라는 이름의 공유 노트로 옮김
+// 아주 초기 버전(공유 노트가 하나뿐이던 때)의 데이터를 "공유 노트북"으로 옮김.
+// 그 데이터는 로컬 개발 모드·미리보기에만 있을 수 있음 (실제 사이트는 규칙상 읽을 수 없어 건너뜀)
 async function migrateLegacy() {
-  if (S.migrated) return;
+  if (S.migrated || MODE === "firebase") return;
   S.migrated = true;
   try {
     const [notes, projects, events] = await Promise.all(["notes", "projects", "events"].map((c) => getDocs(collection(c))));
@@ -638,7 +638,7 @@ async function removePrivate() {
 // 끄는 중 화면이 밀리지 않게 (터치)
 $("#tabs").addEventListener("touchmove", (e) => { if (S.drag && S.drag.active) e.preventDefault(); }, { passive: false });
 
-// 색 구분: 공유 노트 = 파랑, 보낸 초대가 수락을 기다리는 중 = 파랑 빈 점, 내 노트 = 호박색
+// 색 구분: 공유 노트북 = 파랑, 보낸 초대가 수락을 기다리는 중 = 파랑 빈 점, 나만 쓰는 노트북 = 호박색
 // ('공유'에 체크만 하고 초대를 아직 안 보냈으면 호박색)
 const isShared = (scope) => {
   if (scope === "private") return false;
@@ -888,7 +888,7 @@ function projectEntry() {
     el("span", { class: "pc-preview" }, preview));
 }
 
-/* ---------- 공유 노트 만들기 / 설정 ---------- */
+/* ---------- 노트북 만들기 / 설정 ---------- */
 function openPanel(which) {
   flushSave();
   S.panel = which;
@@ -1059,7 +1059,7 @@ function setMsg(text, bad) {
   if (m) { m.textContent = text; m.classList.toggle("bad", !!bad); } else if (bad) setBanner(text);
 }
 
-// 만든 공유 노트 id 를 돌려줌 (실패하면 null)
+// 만든 노트북 id 를 돌려줌 (실패하면 null)
 async function createSpace(nameRaw, emailsRaw, btn, shared = true) {
   const name = nameRaw.trim();
   if (!name) { setMsg("이름을 입력해 주세요.", true); return null; }

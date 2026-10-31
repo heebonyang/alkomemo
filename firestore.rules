@@ -43,7 +43,7 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
-    // 공유 노트: 멤버만 읽고 고침
+    // 노트북: 멤버만 읽고 고침
     match /spaces/{sid} {
       allow read: if signedIn() && request.auth.uid in resource.data.members;
       // 만들 때는 만든 사람 혼자 멤버
@@ -70,8 +70,8 @@ service cloud.firestore {
       // 삭제는 만든 사람만
       allow delete: if signedIn() && resource.data.owner == request.auth.uid;
 
-      // 공유 노트 안의 노트, 프로젝트, 일정 (하위 경로가 한 단계 이상일 때만.
-      // {document=**} 만 쓰면 공유 노트 문서 자체에도 적용돼서 멤버 누구나 지울 수 있게 됨)
+      // 노트북 안의 노트·프로젝트·알림(notices) 등 (하위 경로가 한 단계 이상일 때만.
+      // {document=**} 만 쓰면 노트북 문서 자체에도 적용돼서 멤버 누구나 지울 수 있게 됨)
       match /{sub}/{document=**} {
         allow read, write: if isMember(sid) && sub != 'members';
       }
@@ -84,7 +84,7 @@ service cloud.firestore {
       }
     }
 
-    // 초대장: 문서 id 는 "<공유 노트 id>__<이메일>"
+    // 초대장: 문서 id 는 "<노트북 id>__<이메일>"
     match /invites/{id} {
       allow read: if signedIn() && (
         (emailTrusted() && resource.data.email == myEmail())
@@ -100,7 +100,7 @@ service cloud.firestore {
       );
     }
 
-    // 나만 보는 노트와 일정: 본인만
+    // 나만 보는 데이터('노트' 노트북의 노트, 탭 순서·읽음 표시, 알림 기록): 본인만
     match /users/{uid}/{document=**} {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
