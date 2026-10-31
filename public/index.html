@@ -22,9 +22,6 @@
   --mine: #b8730a;
   --mine-soft: #fbf1de;
   --on-mine: #ffffff;
-  --wait: #d4a600;
-  --wait-soft: #fcf4cf;
-  --on-wait: #2b2200;
   --danger: #c4372c;
   --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 28px;
@@ -33,9 +30,9 @@
   --head: 64px;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --wait: #f2cf3d; --wait-soft: #332a08; --on-wait: #231c00; --danger: #f07c72; color-scheme: dark; }
+  :root:not([data-theme="light"]) { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --danger: #f07c72; color-scheme: dark; }
 }
-:root[data-theme="dark"] { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --wait: #f2cf3d; --wait-soft: #332a08; --on-wait: #231c00; --danger: #f07c72; color-scheme: dark; }
+:root[data-theme="dark"] { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --danger: #f07c72; color-scheme: dark; }
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -51,9 +48,10 @@ input, textarea { background: none; border: 0; outline: none; }
 :focus-visible { outline: 1.5px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 ::placeholder { color: var(--muted); opacity: 1; }
 svg { display: block; }
-/* 공유 = 파랑(--accent), 초대 수락 대기 = 노랑(--wait), 내 노트 = 호박색(--mine). 요소마다 --scope 로 받아 씀 */
+/* 공유 = 파랑(--accent), 내 노트 = 호박색(--mine). 초대 수락 대기는 같은 파랑이되 점을 빈 동그라미로. 요소마다 --scope 로 받아 씀 */
 :root, .scope-shared { --scope: var(--accent); --scope-soft: var(--accent-soft); --on-scope: var(--on-accent); }
-.scope-pending, #app[data-scope="pending"] { --scope: var(--wait); --scope-soft: var(--wait-soft); --on-scope: var(--on-wait); }
+.scope-pending, #app[data-scope="pending"] { --scope: var(--accent); --scope-soft: var(--accent-soft); --on-scope: var(--on-accent); }
+.scope-pending .dot, .dot.scope-pending { background: transparent; box-shadow: inset 0 0 0 1.5px var(--scope); width: 7px; height: 7px; }
 .scope-private, #app[data-scope="private"] { --scope: var(--mine); --scope-soft: var(--mine-soft); --on-scope: var(--on-mine); }
 .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--scope); flex: none; }
 .gutter { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
@@ -127,7 +125,7 @@ svg { display: block; }
 .bell-item.unread { background: var(--faint); }
 .bell-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--line); }
 .bell-dot.received, .bell-dot.joined { background: var(--accent); }
-.bell-dot.sent, .bell-dot.accepted { background: #2e9e5b; }
+.bell-dot.sent, .bell-dot.accepted { background: var(--ink); }
 .bell-dot.left, .bell-dot.declined { background: var(--muted); }
 .bell-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .bell-text { word-break: keep-all; overflow-wrap: anywhere; }
@@ -154,7 +152,7 @@ svg { display: block; }
 .acct-who strong { font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-email { font-size: var(--fs-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-status { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: var(--fs-sm); }
-.acct-on { width: 7px; height: 7px; border-radius: 50%; background: #2e9e5b; flex: none; }
+.acct-on { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
 .acct-meta { padding: 4px 8px 8px 23px; font-size: var(--fs-xs); color: var(--muted); }
 .acct-nick { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px 10px; }
 .acct-nick .fld-row { display: flex; gap: 8px; }
@@ -340,7 +338,12 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 /* 노트북이 많아도 + 와 휴지통은 밀리지 않고 그 자리에 (노트북 탭만 옆으로 넘겨 봄) */
 .tab-fixed { display: flex; align-items: center; gap: 2px; flex: none; margin-left: auto; margin-right: -9px; }
 .tab-fixed .tab-add { margin-left: 0; }
-.nb-trash[aria-pressed="true"] { color: var(--ink); background: var(--faint); }
+.acct-menu .menu-item svg { width: 16px; height: 16px; color: var(--muted); }
+.acct-menu .menu-item small { margin-left: auto; }
+.trash-title { font-size: var(--fs-md); font-weight: 600; color: var(--ink); }
+/* 되돌리기 알림 (화면 아래) */
+.toast { position: fixed; z-index: 40; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: 16px; max-width: calc(100vw - 32px); padding: 12px 16px; border-radius: 10px; background: var(--ink); color: var(--bg); font-size: var(--fs-sm); box-shadow: 0 8px 28px rgb(0 0 0 / .18); }
+.toast button { color: var(--bg); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
 .tab { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .tabs.reordering { cursor: grabbing; }
 .nb-gear[aria-expanded="true"] { color: var(--ink); background: var(--faint); }
@@ -442,6 +445,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 <div class="menu note-menu" id="noteMenu" role="menu" aria-label="노트 메뉴" hidden></div>
 <div class="menu acct-menu" id="acctMenu" role="dialog" aria-label="계정" hidden></div>
 <div class="menu bell-menu" id="bellMenu" role="dialog" aria-label="알림" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="banner gutter" id="banner" hidden></div>
 
 <div class="app" id="app" data-view="list">
