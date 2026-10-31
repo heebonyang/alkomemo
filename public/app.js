@@ -220,6 +220,7 @@ function start(u) {
   S.myNick = "";
   $("#gate").hidden = true;
   $("#shell").hidden = false;
+  requestAnimationFrame(syncHeaderEdge);
   S.photo = u.photoURL || "";
   // 오른쪽 위: 계정 아이콘 하나. 누르면 로그인 상태 창
   $("#me").replaceChildren(
@@ -1699,6 +1700,7 @@ function initResizer({ handle, cssVar, def, min, max, key }) {
   const set = (w, save) => {
     const v = Math.round(Math.min(Math.max(min, max()), Math.max(min, w)));
     app.style.setProperty(cssVar, v + "px");
+    syncHeaderEdge();
     h.setAttribute("aria-valuenow", v);
     if (save) try { localStorage.setItem(key, v); } catch {}
     return v;
@@ -1737,6 +1739,14 @@ function initResizer({ handle, cssVar, def, min, max, key }) {
   });
   window.addEventListener("resize", () => { if (width > max()) width = set(width, false); });
 }
+// 데스크톱: 윗줄 오른쪽 버튼들(+ · ⚙ · 종 · 계정)과 그 창들을 노트 칸 오른쪽 경계선에 맞춤 (선을 끌면 같이 움직임)
+function syncHeaderEdge() {
+  const top = $(".top"), line = $("#colResize");
+  const r = line && line.getBoundingClientRect();
+  if (!r || !r.width || window.matchMedia("(max-width: 760px)").matches) { top.style.paddingRight = ""; return; }
+  top.style.paddingRight = Math.max(20, Math.round(window.innerWidth - (r.left + r.width / 2))) + "px";
+}
+window.addEventListener("resize", syncHeaderEdge);
 initResizer({ handle: "#railResize", cssVar: "--rail-w", def: 300, min: 220, key: "alko.railWidth",
   max: () => Math.min(640, Math.round(window.innerWidth * 0.6)) });
 // 노트 폭은 오른쪽 화면 안에서만: 왼쪽 여백 32px, 오른쪽 끝 20px 남김
