@@ -197,6 +197,21 @@ svg { display: block; }
 .item-snip { font-size: var(--fs-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item-snip:empty { display: none; }
 .item-meta { font-size: var(--fs-xs); color: var(--muted); }
+/* 휴대폰: 왼쪽으로 밀면 뒤에서 빨간 삭제 버튼이 나옴 */
+.swipe { position: relative; overflow: hidden; border-top: 1px solid var(--line); }
+.swipe:first-child, .proj-card + .swipe { border-top: 0; }
+.swipe > .item { width: 100%; border-top: 0; background: var(--bg); position: relative; z-index: 1; transition: transform .2s ease; touch-action: pan-y; }
+.swipe.dragging > .item { transition: none; }
+.swipe:not(.open):not(.dragging) .swipe-del { visibility: hidden; }
+.swipe-del { position: absolute; top: 0; right: 0; bottom: 0; width: 80px; background: var(--danger); color: #fff; font-size: var(--fs-sm); font-weight: 600; }
+/* 휴지통 */
+.trash-link { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 14px 0; border-top: 1px solid var(--line); font-size: var(--fs-sm); color: var(--muted); }
+.trash-link:hover { color: var(--ink); }
+.trash-link svg { width: 15px; height: 15px; }
+.trash-head { gap: 12px; }
+.trash-head .link:first-child { color: var(--ink); font-weight: 600; font-size: var(--fs-md); }
+.item.trashed:hover .item-title { text-decoration: none; }
+.trash-actions { display: flex; gap: 16px; margin-top: 6px; }
 /* 목록 맨 위 프로젝트 카드 */
 /* 프로젝트 관련(카드·화면)은 노트북 색과 관계없이 빨강 */
 .proj-card { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; margin: 12px 0 8px; padding: 12px 14px; border-radius: 10px; background: var(--scope-soft); box-shadow: inset 0 0 0 1px transparent; }
@@ -384,6 +399,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
     <div class="rail-resize" id="railResize" role="separator" aria-orientation="vertical" aria-label="목록 폭 조절" tabindex="0" title="끌어서 폭 조절 · 두 번 눌러 원래대로"></div>
     <div class="rail-top gutter">
       
+      <div class="sel-bar trash-head" id="trashBar" hidden></div>
       <div class="sel-bar" id="selectBar" hidden>
         <label class="check-row sel-all"><input type="checkbox" id="selAll"><span id="selCount">0개 선택</span></label>
         <span class="grow"></span>

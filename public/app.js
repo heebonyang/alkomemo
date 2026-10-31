@@ -29,7 +29,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+$/;
 const S = {
   tab: null, uid: null, email: null, myName: "", names: {},
   spaces: [], spacesLoaded: false, nextTab: null, migrated: false,
-  notes: {}, projects: {}, pending: {}, loaded: {},
+  notes: {}, trash: {}, projects: {}, pending: {}, loaded: {},
+  trashView: false, swiped: null, swipeEnd: 0, purged: {},
   invites: [], spaceSubs: {},
   open: null, dirty: false, writes: 0, chain: Promise.resolve(), saveTimer: null,
   panel: null, editProject: null, tabChosen: false, q: "", unsubs: [],
@@ -114,7 +115,7 @@ function teardown() {
   Object.values(S.spaceSubs).forEach((list) => list.forEach((u) => u()));
   Object.assign(S, {
     unsubs: [], spaceSubs: {}, uid: null, email: null, names: {}, spaces: [], spacesLoaded: false, tab: null, nextTab: null,
-    notes: {}, projects: {}, pending: {}, loaded: {}, invites: [], open: null, dirty: false,
+    notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
     panel: null, editProject: null, migrated: false, tabChosen: false, tabOrder: [], hidePrivate: false, drag: null,
   });
 }
@@ -168,7 +169,7 @@ function onSpaces(list) {
   for (const sid of Object.keys(S.spaceSubs)) {
     if (!ids.has(sid)) {
       S.spaceSubs[sid].forEach((u) => u());
-      delete S.spaceSubs[sid]; delete S.notes[sid]; delete S.projects[sid]; delete S.pending[sid]; delete S.loaded[sid];
+      delete S.spaceSubs[sid]; delete S.notes[sid]; delete S.trash[sid]; delete S.projects[sid]; delete S.pending[sid]; delete S.loaded[sid];
       if (S.open && S.open.scope === sid) { S.open = null; S.dirty = false; }
       if (S.panel === sid) S.panel = null;
     }
@@ -196,8 +197,16 @@ function onSpaces(list) {
   if (S.panel && S.panel !== "new") renderPanelLists();
 }
 
+// 휴지통: 지운 노트는 deletedAt 을 달아 두고 목록에서만 뺌. 30일이 지나면 완전히 지움
+const TRASH_DAYS = 30;
 function onNotes(scope, list, snap) {
-  S.notes[scope] = list;
+  S.notes[scope] = list.filter((n) => !n.deletedAt);
+  S.trash[scope] = list.filter((n) => n.deletedAt).sort((a, b) => b.deletedAt - a.deletedAt);
+  if (!snap.metadata.fromCache && !S.purged[scope]) {
+    S.purged[scope] = true;
+    const old = S.trash[scope].filter((n) => Date.now() - n.deletedAt > TRASH_DAYS * 86400000);
+    old.forEach((n) => queue(() => deleteDoc(docIn(notesCol(scope), n.id)).catch(() => {})));
+  }
   S.loaded[scope] = true;
   if (S.open && S.open.scope === scope) {
     const n = list.find((x) => x.id === S.open.id);
@@ -398,7 +407,7 @@ async function removePrivate() {
   renderAll(); if (isSpace(S.tab)) renderProjects();
   savePrefs();
   try {
-    for (const n of [...(S.notes.private || [])]) await deleteDoc(docIn(notesCol("private"), n.id));
+    for (const n of [...(S.notes.private || []), ...(S.trash.private || [])]) await deleteDoc(docIn(notesCol("private"), n.id));
   } catch (e) { setBanner(errText(e, "노트 삭제에")); }
 }
 // 끄는 중 화면이 밀리지 않게 (터치)
@@ -428,7 +437,7 @@ function switchTab(tab) {
   if (tab === S.tab && !S.panel) return;
   flushSave();
   endSelect();
-  S.tab = tab; S.panel = null; S.editProject = null; S.tabChosen = true; S.board = false;
+  S.tab = tab; S.panel = null; S.editProject = null; S.tabChosen = true; S.board = false; S.trashView = false; S.swiped = null;
   closeSearch();
   $("#app").dataset.view = "list";
   renderTabs(); renderView(); renderRail();
@@ -440,15 +449,21 @@ function renderRail() {
   if (!S.tab) return;
   const scope = S.tab;
   if (!S.loaded[scope]) { pane.replaceChildren(el("div", { class: "hint", text: "불러오는 중…" })); return; }
+  $("#listTools").hidden = S.trashView || !!S.select;
+  $("#trashBar").hidden = !S.trashView;
+  if (S.trashView) { renderTrash(scope); return; }
   const all = S.notes[scope] || [];
   const q = S.q.trim().toLowerCase();
   const items = q ? all.filter((n) => ((n.title || "") + "\n" + (n.body || "")).toLowerCase().includes(q)) : all;
+  const trashLink = (S.trash[scope] || []).length && !q && !S.select
+    ? el("button", { class: "trash-link", onclick: () => openTrash(true) }, svg('<path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/>'), `휴지통 ${S.trash[scope].length}`)
+    : null;
   const entry = isSpace(scope) && !q && !S.select ? projectEntry() : null;
   $("#selectBtn").hidden = !all.length;
   if (S.select) renderSelectBar(items);
 
   if (!all.length) {
-    pane.replaceChildren(...[entry, el("div", { class: "hint", text: "아직 노트가 없어요. + 를 눌러 시작해 보세요." })].filter(Boolean));
+    pane.replaceChildren(...[entry, el("div", { class: "hint", text: "아직 노트가 없어요. + 를 눌러 시작해 보세요." }), trashLink].filter(Boolean));
     return;
   }
   if (!items.length) { pane.replaceChildren(el("div", { class: "hint", text: `‘${S.q}’ 검색 결과가 없어요.` })); return; }
@@ -467,8 +482,82 @@ function renderRail() {
       return el("button", { class: "item selecting" + (picked ? " picked" : ""), role: "checkbox", "aria-checked": String(picked), onclick: () => togglePick(n.id) },
         el("span", { class: "sel-box" }), el("span", { class: "item-body" }, parts));
     }
-    return el("button", { class: "item" + (on ? " on" : ""), onclick: () => openNote(scope, n.id) }, parts);
+    const item = el("button", { class: "item" + (on ? " on" : ""), onclick: () => {
+      if (Date.now() - S.swipeEnd < 400) return; // 밀고 손을 뗄 때 생기는 클릭은 무시
+      if (S.swiped) { closeSwipe(); return; }
+      openNote(scope, n.id);
+    } }, parts);
+    const row = el("div", { class: "swipe" + (S.swiped === n.id ? " open" : "") },
+      el("button", { class: "swipe-del", tabindex: "-1", text: "삭제", onclick: () => trashNotes(scope, [n.id]) }), item);
+    swipeable(row, item, n.id);
+    return row;
+  }), ...[trashLink].filter(Boolean));
+}
+
+// 휴지통 화면: 되살리기 / 완전히 지우기 / 비우기
+function renderTrash(scope) {
+  const list = S.trash[scope] || [];
+  const empty = el("button", { class: "link danger", text: "비우기", disabled: !list.length });
+  empty.addEventListener("click", () => arm(empty, "한 번 더 누르면 모두 지움", () => purgeNotes(scope, list.map((n) => n.id))));
+  $("#trashBar").replaceChildren(
+    el("button", { class: "link", onclick: () => openTrash(false) }, "← 휴지통"),
+    el("span", { class: "grow" }), empty);
+  const hint = el("div", { class: "hint", text: list.length ? `지운 노트는 ${TRASH_DAYS}일 뒤 완전히 지워져요.` : "휴지통이 비어 있어요." });
+  $("#list").replaceChildren(hint, ...list.map((n) => {
+    const purge = el("button", { class: "link danger", text: "완전히 삭제" });
+    purge.addEventListener("click", () => arm(purge, "한 번 더", () => purgeNotes(scope, [n.id])));
+    return el("div", { class: "item trashed" },
+      el("span", { class: "item-title" + (n.title ? "" : " untitled"), text: n.title || "제목 없음" }),
+      el("span", { class: "item-snip", text: (n.body || "").split("\n").find((l) => l.trim()) || "" }),
+      el("span", { class: "item-meta", text: (isSpace(scope) ? who(n.deletedBy) + " · " : "") + fmtStamp.format(n.deletedAt) + " 삭제" }),
+      el("span", { class: "trash-actions" },
+        el("button", { class: "link", text: "되살리기", onclick: () => restoreNote(scope, n.id) }), purge));
   }));
+}
+
+// 휴대폰: 노트를 왼쪽으로 밀면 빨간 삭제 버튼이 나옴
+const SWIPE_W = 80;
+// 다른 곳을 누르면 열린 삭제 버튼을 닫음
+document.addEventListener("pointerdown", (e) => { if (S.swiped && !e.target.closest(".swipe.open")) closeSwipe(); });
+function closeSwipe() {
+  S.swiped = null;
+  document.querySelectorAll(".swipe.open").forEach((r) => { r.classList.remove("open"); r.lastChild.style.transform = ""; });
+}
+function swipeable(row, item, id) {
+  let x0 = 0, y0 = 0, dx = 0, mode = null, base = 0;
+  item.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse") return;
+    x0 = e.clientX; y0 = e.clientY; dx = 0; mode = "wait";
+    base = row.classList.contains("open") ? -SWIPE_W : 0;
+  });
+  item.addEventListener("pointermove", (e) => {
+    if (!mode) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (mode === "wait") {
+      if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+      if (Math.abs(my) > Math.abs(mx)) { mode = null; return; } // 세로로 움직이면 스크롤
+      mode = "drag";
+      if (S.swiped && S.swiped !== id) closeSwipe();
+      item.setPointerCapture(e.pointerId);
+      row.classList.add("dragging");
+    }
+    dx = Math.max(-SWIPE_W - 24, Math.min(0, base + mx));
+    item.style.transform = `translateX(${dx}px)`;
+  });
+  const end = () => {
+    if (mode === "drag") {
+      row.classList.remove("dragging");
+      const open = dx < -SWIPE_W / 2;
+      item.style.transform = open ? `translateX(${-SWIPE_W}px)` : "";
+      row.classList.toggle("open", open);
+      S.swiped = open ? id : null;
+      S.swipeEnd = Date.now();
+    }
+    mode = null;
+  };
+  item.addEventListener("pointerup", end);
+  item.addEventListener("pointercancel", end);
+  if (S.swiped === id) item.style.transform = `translateX(${-SWIPE_W}px)`;
 }
 
 /* ---------- 노트 골라서 지우기 ---------- */
@@ -514,12 +603,8 @@ async function deletePicked() {
   const scope = S.tab;
   const ids = [...S.select];
   if (!ids.length) return;
-  if (S.open && S.open.scope === scope && ids.includes(S.open.id)) { clearTimeout(S.saveTimer); S.dirty = false; S.open = null; renderView(); $("#app").dataset.view = "list"; }
-  S.notes[scope] = (S.notes[scope] || []).filter((n) => !ids.includes(n.id));
   endSelect();
-  try {
-    for (const id of ids) await queue(() => deleteDoc(docIn(notesCol(scope), id)));
-  } catch (e) { setBanner(errText(e, "노트 삭제에")); }
+  trashNotes(scope, ids);
 }
 
 // 돋보기 아이콘을 누르면 검색창이 펼쳐지고, 닫으면 검색어도 지움
@@ -785,7 +870,7 @@ async function removeSpace(sp) {
     S.panel = null;
     if (S.open && S.open.scope === sp.id) { clearTimeout(S.saveTimer); S.open = null; S.dirty = false; }
     const sid = sp.id;
-    const notes = [...(S.notes[sid] || [])], projects = [...(S.projects[sid] || [])], invites = [...(S.pending[sid] || [])];
+    const notes = [...(S.notes[sid] || []), ...(S.trash[sid] || [])], projects = [...(S.projects[sid] || [])], invites = [...(S.pending[sid] || [])];
     for (const n of notes) await deleteDoc(docIn(notesCol(sid), n.id));
     for (const pj of projects) await deleteDoc(docIn(projectsCol(sid), pj.id));
     for (const inv of invites) await deleteDoc(docAt("invites", inv.id));
@@ -963,10 +1048,41 @@ function deleteOpen() {
   const { scope, id } = S.open;
   clearTimeout(S.saveTimer);
   S.dirty = false;
-  const ref = docIn(notesCol(scope), id);
-  S.notes[scope] = (S.notes[scope] || []).filter((n) => n.id !== id);
   closeEditor();
-  queue(() => deleteDoc(ref).catch((e) => setBanner(errText(e, "삭제에"))));
+  trashNotes(scope, [id]);
+}
+
+// 휴지통으로 보내기 / 되살리기 / 완전히 지우기
+function trashNotes(scope, ids) {
+  if (S.open && S.open.scope === scope && ids.includes(S.open.id)) { clearTimeout(S.saveTimer); S.dirty = false; S.open = null; renderView(); $("#app").dataset.view = "list"; }
+  const now = Date.now();
+  const moved = (S.notes[scope] || []).filter((n) => ids.includes(n.id)).map((n) => ({ ...n, deletedAt: now, deletedBy: S.uid }));
+  S.notes[scope] = (S.notes[scope] || []).filter((n) => !ids.includes(n.id));
+  S.trash[scope] = [...moved, ...(S.trash[scope] || [])];
+  S.swiped = null;
+  renderRail();
+  for (const id of ids) queue(() => updateDoc(docIn(notesCol(scope), id), { deletedAt: now, deletedBy: S.uid }).catch((e) => setBanner(errText(e, "삭제에"))));
+}
+function restoreNote(scope, id) {
+  const n = (S.trash[scope] || []).find((x) => x.id === id);
+  if (!n) return;
+  S.trash[scope] = S.trash[scope].filter((x) => x.id !== id);
+  S.notes[scope] = [{ ...n, deletedAt: 0 }, ...(S.notes[scope] || [])].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  if (!S.trash[scope].length) S.trashView = false;
+  renderRail();
+  queue(() => updateDoc(docIn(notesCol(scope), id), { deletedAt: 0, deletedBy: null }).catch((e) => setBanner(errText(e, "되살리기에"))));
+}
+function purgeNotes(scope, ids) {
+  S.trash[scope] = (S.trash[scope] || []).filter((n) => !ids.includes(n.id));
+  if (!S.trash[scope].length) S.trashView = false;
+  renderRail();
+  for (const id of ids) queue(() => deleteDoc(docIn(notesCol(scope), id)).catch((e) => setBanner(errText(e, "완전히 지우기에"))));
+}
+function openTrash(on) {
+  S.trashView = on; S.swiped = null;
+  if (on) { endSelect(); closeSearch(); }
+  $("#listTools").hidden = on;
+  renderRail();
 }
 
 // ⋯ 버튼 아래, 오른쪽 끝을 맞춰서 띄움 (화면 밖으로 나가지 않게)
