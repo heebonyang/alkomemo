@@ -630,7 +630,8 @@ function openPanel(which) {
   renderTabs(); renderView(); renderRail();
   buildPanel();
   $("#app").dataset.view = "detail";
-  if ($("#spName")) $("#spName").focus();
+  // 새 노트북 만들 때만 이름 칸에 바로 커서. 설정은 창만 띄움 (휴대폰에서 키보드가 올라오지 않게)
+  if (which === "new" && $("#spName")) $("#spName").focus();
 }
 function closePanel() {
   S.panel = null;
