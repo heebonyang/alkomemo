@@ -213,7 +213,7 @@ function onNotes(scope, list, snap) {
     if (!n && !snap.metadata.fromCache && !S.writes) closeEditor();
     else if (n && !S.dirty && !S.writes) syncEditor(n);
   }
-  if (S.tab === scope) renderRail();
+  if (S.tab === scope || S.trashView) renderRail();
 }
 
 // 예전 버전(공유 노트가 하나뿐이던 때)의 데이터를 "공유 노트"라는 이름의 공유 노트로 옮김
@@ -284,7 +284,7 @@ function orderedTabs() {
 function renderTabs() {
   if (S.drag && S.drag.active) { S.drag.stale = true; return; } // 끌고 있는 중엔 다시 그리지 않음
   $("#tabs").replaceChildren(
-    ...orderedTabs().map((t) => el("button", { class: "tab " + scopeClass(t.id), role: "tab", "data-id": t.id, "aria-selected": String(t.id === S.tab),
+    ...orderedTabs().map((t) => el("button", { class: "tab " + scopeClass(t.id), role: "tab", "data-id": t.id, "aria-selected": String(t.id === S.tab && !S.trashView),
       title: "끌어서 순서 바꾸기 (Alt + ←/→)",
       onclick: (e) => { if (S.drag && S.drag.justDropped) { e.preventDefault(); return; } switchTab(t.id); },
       onpointerdown: (e) => dragStart(e, t.id),
@@ -292,16 +292,19 @@ function renderTabs() {
       el("span", { class: "dot" }), t.name)),
     el("button", { class: "icon-btn tab-add", id: "tabAdd", "aria-label": "새 노트북 만들기", title: "새 노트북 만들기", "aria-haspopup": "dialog", "aria-expanded": String(!$("#newMenu").hidden), "aria-controls": "newMenu",
       onclick: (e) => { e.stopPropagation(); toggleNewMenu(); } }, svg('<path d="M10 4v12M4 10h12"/>')),
+    // 휴지통: 모든 노트북에서 지운 노트를 한곳에 모아 보여 줌
+    el("button", { class: "tab tab-trash", role: "tab", "aria-selected": String(S.trashView), onclick: () => openTrash(true) },
+      svg('<path d="M4 6h12M8 6V4.5h4V6M6 6l.7 10h6.6L14 6"/>'), "휴지통"),
   );
   // 지금 선택한 노트북을 지우는(또는 나가는) 버튼은 윗줄 맨 오른쪽에 하나만
   // 노트북이 하나만 남으면 지울 수 없음
   // 노트북 줄 오른쪽 끝: [⚙ 설정] [🗑 삭제]. 설정은 직접 만든/초대받은 노트북에만 ('노트'는 없음)
-  $("#nbActions").replaceChildren(...[
+  $("#nbActions").replaceChildren(...(S.trashView ? [] : [
     isSpace(S.tab) && spaceById(S.tab) && el("button", { class: "icon-btn nb-gear", "aria-label": `‘${spaceName(S.tab)}’ 노트북 설정`, title: "노트북 설정 (이름 · 초대)", "aria-expanded": String(S.panel === S.tab),
       onclick: () => (S.panel === S.tab ? closePanel() : openPanel(S.tab)) },
       svg('<path d="M8.7 2.6h2.6l.4 1.9c.5.2.9.4 1.3.7l1.8-.7 1.3 2.2-1.5 1.3c.1.5.1 1 0 1.5l1.5 1.3-1.3 2.2-1.8-.7c-.4.3-.8.5-1.3.7l-.4 1.9H8.7l-.4-1.9c-.5-.2-.9-.4-1.3-.7l-1.8.7-1.3-2.2 1.5-1.3c-.1-.5-.1-1 0-1.5L3.9 6.7l1.3-2.2 1.8.7c.4-.3.8-.5 1.3-.7z" stroke-width="1.5"/><circle cx="10" cy="10" r="2.3"/>')),
     S.tab && orderedTabs().length > 1 && tabDeleteBtn(S.tab),
-  ].filter(Boolean));
+  ]).filter(Boolean));
 }
 
 // 윗줄 맨 오른쪽의 아이콘: 지금 노트북을 만든 사람은 삭제, 다른 멤버는 나가기. 한 번 더 눌러야 실행
@@ -430,11 +433,12 @@ function renderView() {
   const board = isSpace(S.tab) && S.board;
   $("#projView").hidden = panel || hasOpen || !board;
   $("#emptyView").hidden = panel || hasOpen || board;
+  $("#emptyText").textContent = S.trashView ? "지운 노트는 휴지통에서 되살리거나 완전히 지울 수 있어요." : "목록에서 노트를 열거나 + 로 새 노트를 만드세요.";
 
 }
 
 function switchTab(tab) {
-  if (tab === S.tab && !S.panel) return;
+  if (tab === S.tab && !S.panel && !S.trashView) return;
   flushSave();
   endSelect();
   S.tab = tab; S.panel = null; S.editProject = null; S.tabChosen = true; S.board = false; S.trashView = false; S.swiped = null;
@@ -451,19 +455,16 @@ function renderRail() {
   if (!S.loaded[scope]) { pane.replaceChildren(el("div", { class: "hint", text: "불러오는 중…" })); return; }
   $("#listTools").hidden = S.trashView || !!S.select;
   $("#trashBar").hidden = !S.trashView;
-  if (S.trashView) { renderTrash(scope); return; }
+  if (S.trashView) { renderTrash(); return; }
   const all = S.notes[scope] || [];
   const q = S.q.trim().toLowerCase();
   const items = q ? all.filter((n) => ((n.title || "") + "\n" + (n.body || "")).toLowerCase().includes(q)) : all;
-  const trashLink = (S.trash[scope] || []).length && !q && !S.select
-    ? el("button", { class: "trash-link", onclick: () => openTrash(true) }, svg('<path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/>'), `휴지통 ${S.trash[scope].length}`)
-    : null;
   const entry = isSpace(scope) && !q && !S.select ? projectEntry() : null;
   $("#selectBtn").hidden = !all.length;
   if (S.select) renderSelectBar(items);
 
   if (!all.length) {
-    pane.replaceChildren(...[entry, el("div", { class: "hint", text: "아직 노트가 없어요. + 를 눌러 시작해 보세요." }), trashLink].filter(Boolean));
+    pane.replaceChildren(...[entry, el("div", { class: "hint", text: "아직 노트가 없어요. + 를 눌러 시작해 보세요." })].filter(Boolean));
     return;
   }
   if (!items.length) { pane.replaceChildren(el("div", { class: "hint", text: `‘${S.q}’ 검색 결과가 없어요.` })); return; }
@@ -491,27 +492,30 @@ function renderRail() {
       el("button", { class: "swipe-del", tabindex: "-1", text: "삭제", onclick: () => trashNotes(scope, [n.id]) }), item);
     swipeable(row, item, n.id);
     return row;
-  }), ...[trashLink].filter(Boolean));
+  }));
 }
 
-// 휴지통 화면: 되살리기 / 완전히 지우기 / 비우기
-function renderTrash(scope) {
-  const list = S.trash[scope] || [];
+// 휴지통 화면: 되살리기 / 완전히 지우기 / 비우기 (모든 노트북)
+function renderTrash() {
+  const list = trashedNotes();
   const empty = el("button", { class: "link danger", text: "비우기", disabled: !list.length });
-  empty.addEventListener("click", () => arm(empty, "한 번 더 누르면 모두 지움", () => purgeNotes(scope, list.map((n) => n.id))));
+  empty.addEventListener("click", () => arm(empty, "한 번 더 누르면 모두 지움", () => {
+    for (const scope of new Set(list.map((n) => n.scope))) purgeNotes(scope, list.filter((n) => n.scope === scope).map((n) => n.id));
+  }));
   $("#trashBar").replaceChildren(
-    el("button", { class: "link", onclick: () => openTrash(false) }, "← 휴지통"),
+    el("span", { class: "trash-count", text: list.length ? `지운 노트 ${list.length}개` : "" }),
     el("span", { class: "grow" }), empty);
   const hint = el("div", { class: "hint", text: list.length ? `지운 노트는 ${TRASH_DAYS}일 뒤 완전히 지워져요.` : "휴지통이 비어 있어요." });
   $("#list").replaceChildren(hint, ...list.map((n) => {
     const purge = el("button", { class: "link danger", text: "완전히 삭제" });
-    purge.addEventListener("click", () => arm(purge, "한 번 더", () => purgeNotes(scope, [n.id])));
-    return el("div", { class: "item trashed" },
+    purge.addEventListener("click", () => arm(purge, "한 번 더", () => purgeNotes(n.scope, [n.id])));
+    const book = n.scope === "private" ? "노트" : spaceName(n.scope);
+    return el("div", { class: "item trashed " + scopeClass(n.scope) },
       el("span", { class: "item-title" + (n.title ? "" : " untitled"), text: n.title || "제목 없음" }),
       el("span", { class: "item-snip", text: (n.body || "").split("\n").find((l) => l.trim()) || "" }),
-      el("span", { class: "item-meta", text: (isSpace(scope) ? who(n.deletedBy) + " · " : "") + fmtStamp.format(n.deletedAt) + " 삭제" }),
+      el("span", { class: "item-meta" }, el("span", { class: "dot" }), ` ${book} · ` + (isSpace(n.scope) ? who(n.deletedBy) + " · " : "") + fmtStamp.format(n.deletedAt) + " 삭제"),
       el("span", { class: "trash-actions" },
-        el("button", { class: "link", text: "되살리기", onclick: () => restoreNote(scope, n.id) }), purge));
+        el("button", { class: "link", text: "되살리기", onclick: () => restoreNote(n.scope, n.id) }), purge));
   }));
 }
 
@@ -1068,21 +1072,24 @@ function restoreNote(scope, id) {
   if (!n) return;
   S.trash[scope] = S.trash[scope].filter((x) => x.id !== id);
   S.notes[scope] = [{ ...n, deletedAt: 0 }, ...(S.notes[scope] || [])].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  if (!S.trash[scope].length) S.trashView = false;
   renderRail();
   queue(() => updateDoc(docIn(notesCol(scope), id), { deletedAt: 0, deletedBy: null }).catch((e) => setBanner(errText(e, "되살리기에"))));
 }
 function purgeNotes(scope, ids) {
   S.trash[scope] = (S.trash[scope] || []).filter((n) => !ids.includes(n.id));
-  if (!S.trash[scope].length) S.trashView = false;
   renderRail();
   for (const id of ids) queue(() => deleteDoc(docIn(notesCol(scope), id)).catch((e) => setBanner(errText(e, "완전히 지우기에"))));
 }
 function openTrash(on) {
+  if (on) { flushSave(); endSelect(); closeSearch(); S.open = null; S.dirty = false; S.panel = null; S.board = false; }
   S.trashView = on; S.swiped = null;
-  if (on) { endSelect(); closeSearch(); }
-  $("#listTools").hidden = on;
-  renderRail();
+  $("#app").dataset.view = "list";
+  renderAll();
+}
+// 휴지통에 보일 노트: 지금 있는 노트북들의 지운 노트, 최근에 지운 순
+function trashedNotes() {
+  return orderedTabs().flatMap((t) => (S.trash[t.id] || []).map((n) => ({ ...n, scope: t.id })))
+    .sort((a, b) => b.deletedAt - a.deletedAt);
 }
 
 // ⋯ 버튼 아래, 오른쪽 끝을 맞춰서 띄움 (화면 밖으로 나가지 않게)

@@ -205,11 +205,11 @@ svg { display: block; }
 .swipe:not(.open):not(.dragging) .swipe-del { visibility: hidden; }
 .swipe-del { position: absolute; top: 0; right: 0; bottom: 0; width: 80px; background: var(--danger); color: #fff; font-size: var(--fs-sm); font-weight: 600; }
 /* 휴지통 */
-.trash-link { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 14px 0; border-top: 1px solid var(--line); font-size: var(--fs-sm); color: var(--muted); }
-.trash-link:hover { color: var(--ink); }
-.trash-link svg { width: 15px; height: 15px; }
+.tab-trash { --scope: var(--ink); gap: 6px; }
+.tab-trash svg { width: 15px; height: 15px; }
 .trash-head { gap: 12px; }
-.trash-head .link:first-child { color: var(--ink); font-weight: 600; font-size: var(--fs-md); }
+.trash-count { font-size: var(--fs-sm); color: var(--muted); }
+.item.trashed .item-meta .dot { vertical-align: middle; margin: 0 2px 2px 0; }
 .item.trashed:hover .item-title { text-decoration: none; }
 .trash-actions { display: flex; gap: 16px; margin-top: 6px; }
 /* 목록 맨 위 프로젝트 카드 */
