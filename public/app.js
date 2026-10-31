@@ -31,6 +31,7 @@ const S = {
   spaces: [], spacesLoaded: false, nextTab: null, migrated: false,
   notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "",
   notices: {}, seen: {}, seenLoaded: false, draft: null,
+  activity: [], activityIds: new Set(), knownMembers: {}, bellOpenedFrom: 0,
   trashView: false, swiped: null, swipeEnd: 0, purged: {},
   invites: [], spaceSubs: {},
   open: null, dirty: false, writes: 0, chain: Promise.resolve(), saveTimer: null,
@@ -81,6 +82,7 @@ function toggleAcctMenu(force) {
   menu.hidden = !open;
   if (btn) btn.setAttribute("aria-expanded", String(open));
   if (!open) return;
+  toggleBell(false);
   const how = MODE === "firebase" ? "Google 계정으로 로그인됨" : MODE === "local" ? "개발 모드 · 이 브라우저에만 저장" : "claude.ai 계정으로 로그인됨";
   const books = orderedTabs().length, shared = S.spaces.filter((sp) => isShared(sp.id)).length;
   menu.replaceChildren(...[
@@ -197,12 +199,12 @@ async function login() {
 
 function teardown() {
   toggleAcctMenu(false);
-  $("#notices").hidden = true;
+  toggleBell(false);
   S.unsubs.forEach((u) => u());
   Object.values(S.spaceSubs).forEach((list) => list.forEach((u) => u()));
   Object.assign(S, {
     unsubs: [], spaceSubs: {}, uid: null, email: null, names: {}, spaces: [], spacesLoaded: false, tab: null, nextTab: null,
-    notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "", notices: {}, seen: {}, seenLoaded: false, draft: null, invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
+    notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "", notices: {}, seen: {}, seenLoaded: false, draft: null, activity: [], activityIds: new Set(), knownMembers: {}, invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
     panel: null, editProject: null, migrated: false, tabChosen: false, tabOrder: [], hidePrivate: false, drag: null,
   });
 }
@@ -216,7 +218,12 @@ function start(u) {
   $("#shell").hidden = false;
   S.photo = u.photoURL || "";
   // 오른쪽 위: 계정 아이콘 하나. 누르면 로그인 상태 창
-  $("#me").replaceChildren(el("button", { class: "acct-btn", id: "acctBtn", "aria-label": `계정: ${S.myName}`, title: S.myName, "aria-haspopup": "dialog", "aria-expanded": "false",
+  $("#me").replaceChildren(
+    el("button", { class: "icon-btn bell-btn", id: "bellBtn", "aria-label": "알림", title: "알림", "aria-haspopup": "dialog", "aria-expanded": "false",
+      onclick: (e) => { e.stopPropagation(); toggleBell(); } },
+      svg('<path d="M5 8a5 5 0 0 1 10 0c0 4 1.5 5.5 1.5 5.5h-13S5 12 5 8z"/><path d="M8.5 16.5a1.6 1.6 0 0 0 3 0"/>'),
+      el("span", { class: "bell-badge", id: "bellBadge", hidden: true })),
+    el("button", { class: "acct-btn", id: "acctBtn", "aria-label": `계정: ${S.myName}`, title: S.myName, "aria-haspopup": "dialog", "aria-expanded": "false",
     onclick: (e) => { e.stopPropagation(); toggleAcctMenu(); } }, avatar(32)));
   setDoc(docAt("profiles", u.uid), { name: S.myName }, { merge: true }).catch(() => {});
 
@@ -226,7 +233,7 @@ function start(u) {
     // 탭 순서는 사람마다 따로 저장 (users/<나>/prefs/tabs)
     watch(collection("users", S.uid, "prefs"), {}, (s) => {
       const seenDoc = s.docs.find((x) => x.id === "seen");
-      S.seen = (seenDoc && seenDoc.data()) || {}; S.seenLoaded = true; renderNotices();
+      S.seen = (seenDoc && seenDoc.data()) || {}; S.seenLoaded = true; renderNotices(); renderBell();
       const d = s.docs.find((x) => x.id === "tabs");
       S.tabOrder = (d && d.data().order) || [];
       S.hidePrivate = !!(d && d.data().hidePrivate);
@@ -249,6 +256,11 @@ function start(u) {
     }))), onErr),
     watch(notesCol("private"), { byUpdated: true }, (s) => onNotes("private", docs(s), s), onErr),
   );
+  S.unsubs.push(watch(collection("users", S.uid, "activity"), {}, (s) => {
+    S.activity = docs(s).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    S.activity.forEach((a) => S.activityIds.add(a.id));
+    renderBell();
+  }, () => {}));
   if (S.email) S.unsubs.push(watch(collection("invites"), { where: ["email", "==", S.email] }, (s) => { S.invites = docs(s); renderInvites(); },
     (e) => setBanner(e && e.code === "permission-denied" ? `받은 초대장을 불러오지 못했어요. (${S.email}) 다시 로그인해 보세요.` : errText(e, "초대장 불러오기에"))));
   renderAll();
@@ -257,6 +269,13 @@ function start(u) {
 // 내가 속한 공유 노트 목록이 바뀌면 각 공유 노트의 노트/프로젝트/일정 구독을 맞춤
 function onSpaces(list) {
   S.spaces = list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  // 내 노트북에 누가 새로 들어오면 기록 (앱을 켜 둔 동안 본 것)
+  for (const sp of list) {
+    const known = S.knownMembers[sp.id];
+    if (known) for (const id of sp.members || []) if (!known.includes(id) && id !== S.uid)
+      logActivity(`join_${sp.id}_${id}`, { type: "joined", uid: id, name: nameOf(id), email: (S.memberInfo[sp.id] && S.memberInfo[sp.id][id] && S.memberInfo[sp.id][id].email) || "", spaceName: sp.name || "", createdAt: Date.now() });
+    S.knownMembers[sp.id] = [...(sp.members || [])];
+  }
   const ids = new Set(list.map((s) => s.id));
   for (const sid of Object.keys(S.spaceSubs)) {
     if (!ids.has(sid)) {
@@ -274,7 +293,12 @@ function onSpaces(list) {
     S.spaceSubs[sid] = [
       watch(notesCol(sid), { byUpdated: true }, (s) => onNotes(sid, docs(s), s), onErr),
       watch(projectsCol(sid), {}, (s) => { S.projects[sid] = docs(s); S.loaded["p:" + sid] = true; if (S.tab === sid) { renderProjects(); renderRail(); } }, onErr),
-      watch(collection("invites"), { where: ["spaceId", "==", sid] }, (s) => { S.pending[sid] = docs(s); if (S.panel === sid) renderPanelLists(); }, () => {}),
+      watch(collection("invites"), { where: ["spaceId", "==", sid] }, (s) => {
+        S.pending[sid] = docs(s);
+        // 지금까지 내가 보낸 (아직 수락 전인) 초대도 기록에 남김
+        for (const inv of S.pending[sid]) if (inv.invitedBy === S.uid) logActivity(`sent_${inv.id}_${inv.createdAt || 0}`, { type: "sent", email: inv.email, spaceName: inv.spaceName || "", createdAt: inv.createdAt || Date.now() });
+        if (S.panel === sid) renderPanelLists();
+      }, () => {}),
       watch(collection("spaces", sid, "notices"), {}, (s) => { S.notices[sid] = docs(s); renderNotices(); }, () => {}),
       // 멤버 이메일 (멤버끼리만 보임). 내 것이 없으면 적어 둠
       watch(collection("spaces", sid, "members"), {}, (s) => {
@@ -338,16 +362,11 @@ async function migrateLegacy() {
 }
 
 /* ---------- 받은 초대 ---------- */
+// 받은 초대장은 종 알림에 보이고, 기록에도 남김
 function renderInvites() {
-  const box = $("#invites");
-  box.hidden = !S.invites.length;
-  box.replaceChildren(...S.invites.map((inv) => el("div", { class: "invite" },
-    el("span", { class: "invite-text" },
-      el("strong", { text: inv.invitedByName || "누군가" }), inv.invitedByEmail ? ` (${inv.invitedByEmail})` : "", "님이 ",
-      el("strong", { text: `‘${inv.spaceName || "공유 노트북"}’` }), " 노트북에 초대했어요"),
-    el("span", { class: "grow" }),
-    el("button", { class: "link", text: "거절", onclick: () => declineInvite(inv) }),
-    el("button", { class: "btn primary", text: "수락", onclick: () => acceptInvite(inv) }))));
+  for (const inv of S.invites) logActivity(`recv_${inv.id}_${inv.createdAt || 0}`, {
+    type: "received", uid: inv.invitedBy || "", name: inv.invitedByName || "", email: inv.invitedByEmail || "", spaceName: inv.spaceName || "", createdAt: inv.createdAt || Date.now() });
+  renderBell();
 }
 
 async function acceptInvite(inv) {
@@ -355,11 +374,88 @@ async function acceptInvite(inv) {
     await arrayAdd(spaceRef(inv.spaceId), { members: S.uid, memberEmails: S.email });
     S.nextTab = inv.spaceId;
     await deleteDoc(docAt("invites", inv.id));
+    logActivity(`acc_${inv.id}_${Date.now()}`, { type: "accepted", uid: inv.invitedBy || "", name: inv.invitedByName || "", spaceName: inv.spaceName || "", createdAt: Date.now() });
   } catch (e) { setBanner(errText(e, "초대 수락에")); }
 }
 function declineInvite(inv) {
   deleteDoc(docAt("invites", inv.id)).catch((e) => setBanner(errText(e, "초대 거절에")));
+  logActivity(`dec_${inv.id}_${Date.now()}`, { type: "declined", uid: inv.invitedBy || "", name: inv.invitedByName || "", spaceName: inv.spaceName || "", createdAt: Date.now() });
 }
+
+/* ---------- 알림 (종): 받은 초대 + 기록 ---------- */
+// 기록은 사람마다 users/<나>/activity 에 남김. 같은 일은 같은 id 라서 여러 번 적어도 하나만 남음
+function logActivity(id, entry) {
+  if (!S.uid || S.activityIds.has(id)) return;
+  S.activityIds.add(id);
+  setDoc(docAt("users", S.uid, "activity", id), entry).catch(() => S.activityIds.delete(id));
+}
+const INCOMING = new Set(["received", "joined", "left"]);
+function activityText(a) {
+  const book = `‘${a.spaceName || "노트북"}’`;
+  const who = (a.uid && a.uid !== S.uid && nameOf(a.uid)) || a.name || "누군가";
+  const mail = a.email ? ` (${a.email})` : "";
+  switch (a.type) {
+    case "sent": return [`${book} 노트북에 `, el("strong", { text: a.email || "" }), " 님을 초대했어요"];
+    case "received": return [el("strong", { text: who }), `${mail}님이 ${book} 노트북에 초대했어요`];
+    case "accepted": return [`${who}님의 ${book} 노트북 초대를 수락했어요`];
+    case "declined": return [`${who}님의 ${book} 노트북 초대를 거절했어요`];
+    case "joined": return [el("strong", { text: who }), `${mail}님이 ${book} 노트북에 들어왔어요`];
+    case "left": return [el("strong", { text: who }), `${mail}님이 ${book} 노트북에서 나갔어요`];
+    default: return [""];
+  }
+}
+function renderBell() {
+  const btn = $("#bellBtn");
+  if (!btn) return;
+  const lastSeen = S.seen._bell || 0;
+  const unread = S.activity.filter((a) => (a.type === "joined" || a.type === "left") && a.createdAt > lastSeen).length;
+  const count = S.invites.length + unread;
+  const badge = $("#bellBadge");
+  badge.hidden = !count; badge.textContent = count > 9 ? "9+" : String(count);
+  btn.setAttribute("aria-label", count ? `알림 ${count}개` : "알림");
+  if (!$("#bellMenu").hidden) fillBell();
+}
+function fillBell() {
+  const lastSeen = S.bellOpenedFrom || 0;
+  const invites = S.invites.map((inv) => el("div", { class: "bell-invite" },
+    el("div", { class: "bell-text" }, el("strong", { text: inv.invitedByName || "누군가" }), inv.invitedByEmail ? ` (${inv.invitedByEmail})` : "", "님이 ",
+      el("strong", { text: `‘${inv.spaceName || "공유 노트북"}’` }), " 노트북에 초대했어요"),
+    el("div", { class: "bell-actions" },
+      el("button", { class: "link", text: "거절", onclick: () => declineInvite(inv) }),
+      el("button", { class: "btn primary", text: "수락", onclick: () => { acceptInvite(inv); toggleBell(false); } }))));
+  const log = S.activity.slice(0, 50).map((a) => el("div", { class: "bell-item" + (INCOMING.has(a.type) && a.createdAt > lastSeen ? " unread" : "") },
+    el("span", { class: "bell-dot " + a.type }),
+    el("div", { class: "bell-body" }, el("div", { class: "bell-text" }, ...activityText(a)), el("div", { class: "bell-time", text: fmtStamp.format(a.createdAt) }))));
+  $("#bellMenu").replaceChildren(...[
+    el("div", { class: "menu-label bell-title", text: "알림" }),
+    invites.length && el("div", { class: "bell-sec" }, el("div", { class: "menu-label", text: "받은 초대" }), ...invites),
+    el("div", { class: "bell-sec" }, el("div", { class: "menu-label", text: "기록" }),
+      ...(log.length ? log : [el("p", { class: "hint tight bell-empty", text: "아직 기록이 없어요." })])),
+  ].filter(Boolean));
+  placeBell();
+}
+function placeBell() {
+  const menu = $("#bellMenu"), btn = $("#bellBtn");
+  if (menu.hidden || !btn) return;
+  const r = btn.getBoundingClientRect();
+  menu.style.top = r.bottom + 8 + "px";
+  menu.style.left = Math.max(16, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16)) + "px";
+}
+function toggleBell(force) {
+  const menu = $("#bellMenu"), btn = $("#bellBtn");
+  const open = force !== undefined ? force : menu.hidden;
+  menu.hidden = !open;
+  if (btn) btn.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  toggleAcctMenu(false);
+  // 열어 보면 읽은 것으로 (이번에 열었을 때는 새 기록을 강조해서 보여 줌)
+  S.bellOpenedFrom = S.seen._bell || 0;
+  fillBell();
+  if (S.uid) { S.seen = { ...S.seen, _bell: Date.now() }; setDoc(docAt("users", S.uid, "prefs", "seen"), S.seen).catch(() => {}); renderBell(); }
+}
+document.addEventListener("click", (e) => { if (!$("#bellMenu").hidden && !e.target.closest("#bellMenu")) toggleBell(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#bellMenu").hidden) { toggleBell(false); $("#bellBtn") && $("#bellBtn").focus(); } });
+window.addEventListener("resize", placeBell);
 
 /* ---------- tabs & views ---------- */
 // 톱니바퀴 (24 격자로 그려서 동그랗게)
@@ -951,10 +1047,12 @@ async function sendInvites(sid, raw, nameOverride) {
   try {
     if (todo.length && sp.shared === false) await updateDoc(spaceRef(sid), { shared: true });
     for (const email of todo) {
-      await setDoc(inviteRef(sid, email), {
+      const inv = {
         spaceId: sid, spaceName: nameOverride || sp.name || "공유 노트북", email,
         invitedBy: S.uid, invitedByName: myLabel(), invitedByEmail: S.email || "", createdAt: Date.now(),
-      });
+      };
+      await setDoc(inviteRef(sid, email), inv);
+      logActivity(`sent_${sid}__${email}_${inv.createdAt}`, { type: "sent", email, spaceName: inv.spaceName, createdAt: inv.createdAt });
     }
     setMsg(todo.length ? `${todo.join(", ")} 님에게 초대장을 보냈어요.` + (skip.length ? ` (${skip.join(", ")}는 이미 멤버예요)` : "") : "이미 멤버인 사람이에요.", !todo.length);
     return true;
@@ -997,27 +1095,22 @@ async function leaveSpace(sp) {
 /* ---------- 알림: 누가 공유 노트북에서 나갔는지 ---------- */
 // 노트북마다 '여기까지 봤음' 시각을 사람별로 저장 (users/<나>/prefs/seen). 처음 보는 노트북은 지금부터 셈
 function renderNotices() {
-  const box = $("#notices");
-  if (!S.seenLoaded) { box.hidden = true; return; }
-  const list = [];
+  if (!S.seenLoaded) return;
   for (const sp of S.spaces) {
     const seen = S.seen[sp.id];
     if (seen === undefined) { markSeen(sp.id, Date.now()); continue; }
-    for (const n of S.notices[sp.id] || []) if (n.createdAt > seen && n.uid !== S.uid) list.push({ ...n, sid: sp.id, spaceName: sp.name });
+    let last = seen;
+    for (const n of S.notices[sp.id] || []) {
+      if (n.createdAt > seen && n.uid !== S.uid) logActivity(`left_${sp.id}_${n.id}`, { type: "left", uid: n.uid, name: n.name || "", email: n.email || "", spaceName: sp.name || "", createdAt: n.createdAt });
+      last = Math.max(last, n.createdAt || 0);
+    }
+    if (last > seen) markSeen(sp.id, last);
   }
-  box.hidden = !list.length;
-  box.replaceChildren(...list.sort((a, b) => a.createdAt - b.createdAt).map((n) => el("div", { class: "invite notice" },
-    el("span", { class: "invite-text" },
-      el("strong", { text: n.name || "멤버" }), n.email ? ` (${n.email})` : "", "님이 ",
-      el("strong", { text: `‘${n.spaceName || "공유 노트북"}’` }), ` 노트북에서 나갔어요 · ${fmtStamp.format(n.createdAt)}`),
-    el("span", { class: "grow" }),
-    el("button", { class: "link", text: "확인", onclick: () => markSeen(n.sid, n.createdAt) }))));
 }
 function markSeen(sid, ts) {
   if (!S.uid) return;
   S.seen = { ...S.seen, [sid]: Math.max(ts, S.seen[sid] || 0) };
   setDoc(docAt("users", S.uid, "prefs", "seen"), S.seen).catch(() => {});
-  renderNotices();
 }
 // 노트북 삭제: 안의 노트·프로젝트·보낸 초대도 함께 지움 (만든 사람만)
 async function removeSpace(sp) {
