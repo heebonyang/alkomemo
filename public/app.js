@@ -69,13 +69,15 @@ function avatar(size) {
   if (S.photo) return el("img", { class: "avatar", src: S.photo, alt: "", referrerpolicy: "no-referrer", width: size, height: size });
   return el("span", { class: "avatar initial", style: `width:${size}px;height:${size}px;font-size:${Math.round(size * 0.45)}px`, text: (myLabel() || "?").trim().charAt(0).toUpperCase() });
 }
-function placeAcctMenu() {
-  const menu = $("#acctMenu"), btn = $("#acctBtn");
-  if (menu.hidden || !btn) return;
-  const r = btn.getBoundingClientRect();
-  menu.style.top = r.bottom + 8 + "px";
-  menu.style.left = Math.max(16, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16)) + "px";
+// 윗줄에서 여는 창(계정·알림·새 노트북)은 모두 화면 오른쪽 줄(머리글 오른쪽 여백 안쪽)에 오른쪽 끝을 맞춤
+function placeRight(menu, anchor, gap = 8) {
+  if (menu.hidden || !anchor) return;
+  const top = $(".top"), tr = top.getBoundingClientRect();
+  const line = tr.right - parseFloat(getComputedStyle(top).paddingRight);
+  menu.style.top = anchor.getBoundingClientRect().bottom + gap + "px";
+  menu.style.left = Math.max(16, line - menu.offsetWidth) + "px";
 }
+function placeAcctMenu() { placeRight($("#acctMenu"), $("#acctBtn")); }
 function toggleAcctMenu(force) {
   const menu = $("#acctMenu"), btn = $("#acctBtn");
   const open = force !== undefined ? force : menu.hidden;
@@ -457,13 +459,7 @@ function fillBell() {
   ].filter(Boolean));
   placeBell();
 }
-function placeBell() {
-  const menu = $("#bellMenu"), btn = $("#bellBtn");
-  if (menu.hidden || !btn) return;
-  const r = btn.getBoundingClientRect();
-  menu.style.top = r.bottom + 8 + "px";
-  menu.style.left = Math.max(16, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16)) + "px";
-}
+function placeBell() { placeRight($("#bellMenu"), $("#bellBtn")); }
 function toggleBell(force) {
   const menu = $("#bellMenu"), btn = $("#bellBtn");
   const open = force !== undefined ? force : menu.hidden;
@@ -1313,14 +1309,8 @@ function flushSave() {
 }
 
 // 맨 윗줄 + 를 누르면 새 탭 창: 이름을 정하고, "초대해서 공유 노트로 만들기"를 체크하면 공유 탭(초대 수락 전 빈 파랑 점, 수락 후 파랑), 아니면 혼자 쓰는 탭(호박색)
-// 맨 윗줄 + 바로 아래에 띄움 (화면 밖으로 나가지 않게)
-function placeNewMenu() {
-  const menu = $("#newMenu"), anchor = $("#tabAdd");
-  if (menu.hidden || !anchor) return;
-  const r = anchor.getBoundingClientRect();
-  menu.style.top = r.bottom + 6 + "px";
-  menu.style.left = Math.max(16, Math.min(r.left, window.innerWidth - menu.offsetWidth - 16)) + "px";
-}
+// 맨 윗줄 + 바로 아래, 오른쪽 줄에 맞춰 띄움
+function placeNewMenu() { placeRight($("#newMenu"), $("#tabAdd"), 6); }
 
 function toggleNewMenu(force) {
   const menu = $("#newMenu");
