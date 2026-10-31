@@ -275,6 +275,9 @@ function onSpaces(list) {
     if (known) for (const id of sp.members || []) if (!known.includes(id) && id !== S.uid)
       logActivity(`join_${sp.id}_${id}`, { type: "joined", uid: id, name: nameOf(id), email: (S.memberInfo[sp.id] && S.memberInfo[sp.id][id] && S.memberInfo[sp.id][id].email) || "", spaceName: sp.name || "", createdAt: Date.now() });
     S.knownMembers[sp.id] = [...(sp.members || [])];
+    // 처음으로 2명 이상이 되면 공유 성사로 표시 (나중에 다른 멤버가 다 나가도 공유 노트북으로 남음)
+    if ((sp.members || []).length > 1 && sp.confirmed !== true && !sp.pendingServer)
+      updateDoc(spaceRef(sp.id), { confirmed: true, shared: true }).catch(() => {});
   }
   const ids = new Set(list.map((s) => s.id));
   for (const sid of Object.keys(S.spaceSubs)) {
@@ -596,16 +599,19 @@ async function removePrivate() {
 // 끄는 중 화면이 밀리지 않게 (터치)
 $("#tabs").addEventListener("touchmove", (e) => { if (S.drag && S.drag.active) e.preventDefault(); }, { passive: false });
 
-// 색 구분: 공유 노트 = 파랑, 내 노트 = 호박색
+// 색 구분: 공유 노트 = 파랑, 초대 수락 대기 = 노랑, 내 노트 = 호박색
 const isShared = (scope) => {
   if (scope === "private") return false;
   const sp = spaceById(scope);
   return !sp || sp.shared !== false || (sp.members || []).length > 1;
 };
-const scopeClass = (scope) => (isShared(scope) ? "scope-shared" : "scope-private");
+// 공유가 성사됐는지: 한 번이라도 2명 이상이 함께 쓴 노트북. 그 뒤로는 일반 노트북으로 되돌릴 수 없음
+const isConfirmed = (sp) => !sp || sp.confirmed === true || (sp.members || []).length > 1;
+const scopeKind = (scope) => (!isShared(scope) ? "private" : isConfirmed(spaceById(scope)) ? "shared" : "pending");
+const scopeClass = (scope) => "scope-" + scopeKind(scope);
 
 function renderView() {
-  $("#app").dataset.scope = isShared(S.tab) ? "shared" : "private";
+  $("#app").dataset.scope = scopeKind(S.tab);
   const panel = !!S.panel;
   const hasOpen = !panel && S.open && S.open.scope === S.tab;
   $("#spaceView").hidden = !panel;
@@ -902,29 +908,34 @@ function buildPanel() {
     if (ok) inviteIn.value = "";
   });
   const isOwner = sp.owner === S.uid;
-  // 공유 노트북 여부: 체크하면 멤버·초대(참여 코드) 칸이 보이고, 끄면 숨김. 만든 사람만 바꿀 수 있음
+  const confirmed = isConfirmed(sp);
+  // 공유 노트북 여부: 체크하면 멤버·초대(참여 코드) 칸이 보이고, 끄면 숨김. 만든 사람만 바꿀 수 있음.
+  // 초대 수락으로 공유가 성사된 뒤에는 체크박스 대신 안내만 보여 줌 (공유를 끌 수 없고, 나가기만 가능)
   const shareBox = el("input", { type: "checkbox", id: "spShared", checked: isShared(sp.id), disabled: !isOwner });
   const shareSecs = el("div", { class: "panel-group", id: "spShareSecs", hidden: !isShared(sp.id) },
     el("div", { class: "panel-sec" }, el("span", { class: "fld-label", text: "멤버" }), el("div", { class: "people", id: "spMembers" })),
     inviteForm,
     email && el("div", { class: "panel-sec" }, el("span", { class: "fld-label", text: "보낸 초대" }), el("div", { class: "people", id: "spPending" })));
   const confirmRow = el("div", { class: "share-confirm", hidden: true });
-  const shareSec = el("div", { class: "panel-sec" },
-    el("label", { class: "check-row share-row" }, shareBox, el("span", { text: "공유 노트북" })),
-    el("p", { class: "fld-help", text: isOwner ? "체크하면 다른 사람을 초대해서 함께 쓸 수 있어요." : "공유 여부는 노트북을 만든 사람만 바꿀 수 있어요." }),
-    confirmRow);
+  const shareSec = confirmed
+    ? el("div", { class: "panel-sec" },
+      el("div", { class: "share-state scope-shared" }, el("span", { class: "dot" }), el("strong", { text: "공유 노트북" })),
+      el("p", { class: "fld-help", text: "초대를 수락한 멤버와 함께 쓰는 공유 노트북이에요. 일반 노트북으로 되돌릴 수 없어요. 그만 쓰려면 맨 아래 ‘노트북에서 나가기’를 눌러 주세요." }))
+    : el("div", { class: "panel-sec" },
+      el("label", { class: "check-row share-row" }, shareBox, el("span", { text: "공유 노트북" })),
+      el("p", { class: "fld-help", text: isOwner
+        ? "체크하면 다른 사람을 초대할 수 있어요. 초대받은 사람이 수락할 때까지는 노랑(대기)으로 보이고, 수락하면 파랑 공유 노트북이 돼요. 그 뒤에는 공유를 끌 수 없어요."
+        : "공유 여부는 노트북을 만든 사람만 바꿀 수 있어요." }),
+      confirmRow);
   shareBox.addEventListener("change", () => {
     confirmRow.hidden = true;
     if (shareBox.checked) { setShared(sp, true); shareSecs.hidden = false; return; }
-    // 다른 멤버나 보낸 초대가 있으면 한 번 더 확인
-    const cur = spaceById(sp.id) || sp; // 열어 둔 뒤 멤버가 바뀌었을 수 있으니 지금 값으로
-    const others = (cur.members || []).filter((id) => id !== S.uid).length;
+    // 보낸 초대가 있으면 한 번 더 확인 (아직 수락한 사람이 없을 때만 끌 수 있음)
     const pend = (S.pending[sp.id] || []).length;
-    if (!others && !pend) { setShared(sp, false); shareSecs.hidden = true; return; }
+    if (!pend) { setShared(sp, false); shareSecs.hidden = true; return; }
     shareBox.checked = true;
-    const parts = [others && `다른 멤버 ${others}명`, pend && `보낸 초대 ${pend}개`].filter(Boolean).join("과 ");
     confirmRow.replaceChildren(
-      el("span", { text: `공유를 끄면 ${parts}${parts.endsWith("명") ? "이" : "가"} 정리되고, 나만 볼 수 있게 돼요.` }),
+      el("span", { text: `공유를 끄면 보낸 초대 ${pend}개가 취소되고, 나만 볼 수 있게 돼요.` }),
       el("span", { class: "grow" }),
       el("button", { type: "button", class: "link", text: "취소", onclick: () => { confirmRow.hidden = true; } }),
       el("button", { type: "button", class: "btn danger-btn", text: "공유 끄기", onclick: () => { confirmRow.hidden = true; shareBox.checked = false; shareSecs.hidden = true; setShared(sp, false); } }));
@@ -1069,12 +1080,13 @@ async function renameSpace(sid, raw) {
   } catch (e) { setMsg(errText(e, "이름 저장에"), true); }
 }
 
-// 공유 켜기/끄기. 끌 때는 다른 멤버와 보낸 초대를 정리해서 나만 남김
+// 공유 켜기/끄기. 끄기는 아직 아무도 초대를 수락하지 않았을 때만 (보낸 초대만 취소, 멤버는 건드리지 않음)
 async function setShared(sp, on) {
   try {
     if (on) { await updateDoc(spaceRef(sp.id), { shared: true, updatedAt: Date.now() }); return; }
+    if (isConfirmed(spaceById(sp.id) || sp)) return;
     for (const inv of S.pending[sp.id] || []) await deleteDoc(docAt("invites", inv.id));
-    await updateDoc(spaceRef(sp.id), { shared: false, members: [S.uid], memberEmails: S.email ? [S.email] : [], updatedAt: Date.now() });
+    await updateDoc(spaceRef(sp.id), { shared: false, updatedAt: Date.now() });
   } catch (e) { setBanner(errText(e, "공유 설정 저장에")); }
 }
 
@@ -1226,7 +1238,7 @@ function flushSave() {
   });
 }
 
-// 맨 윗줄 + 를 누르면 새 탭 창: 이름을 정하고, "초대해서 공유 노트로 만들기"를 체크하면 공유 탭(파랑), 아니면 혼자 쓰는 탭(호박색)
+// 맨 윗줄 + 를 누르면 새 탭 창: 이름을 정하고, "초대해서 공유 노트로 만들기"를 체크하면 공유 탭(초대 수락 전 노랑, 수락 후 파랑), 아니면 혼자 쓰는 탭(호박색)
 // 맨 윗줄 + 바로 아래에 띄움 (화면 밖으로 나가지 않게)
 function placeNewMenu() {
   const menu = $("#newMenu"), anchor = $("#tabAdd");
@@ -1262,7 +1274,7 @@ function toggleNewMenu(force) {
       el("button", { type: "button", class: "link", text: "취소", onclick: () => toggleNewMenu(false) }), submit));
   share.addEventListener("change", () => {
     fields.hidden = !share.checked;
-    form.className = "nn " + (share.checked ? "scope-shared" : "scope-private");
+    form.className = "nn " + (share.checked ? "scope-pending" : "scope-private");
     msg.textContent = "";
     if (share.checked && email) emailIn.focus();
   });

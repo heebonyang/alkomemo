@@ -22,6 +22,9 @@
   --mine: #b8730a;
   --mine-soft: #fbf1de;
   --on-mine: #ffffff;
+  --wait: #d4a600;
+  --wait-soft: #fcf4cf;
+  --on-wait: #2b2200;
   --danger: #c4372c;
   --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 28px;
@@ -30,9 +33,9 @@
   --head: 64px;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --danger: #f07c72; color-scheme: dark; }
+  :root:not([data-theme="light"]) { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --wait: #f2cf3d; --wait-soft: #332a08; --on-wait: #231c00; --danger: #f07c72; color-scheme: dark; }
 }
-:root[data-theme="dark"] { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --danger: #f07c72; color-scheme: dark; }
+:root[data-theme="dark"] { --bg: #121212; --ink: #ebebeb; --muted: #7c7c7c; --faint: #1d1d1d; --line: #262626; --accent: #6c9bff; --accent-soft: #1a2540; --on-accent: #0d1426; --mine: #f0a63a; --mine-soft: #36260d; --on-mine: #241703; --wait: #f2cf3d; --wait-soft: #332a08; --on-wait: #231c00; --danger: #f07c72; color-scheme: dark; }
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -48,8 +51,9 @@ input, textarea { background: none; border: 0; outline: none; }
 :focus-visible { outline: 1.5px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 ::placeholder { color: var(--muted); opacity: 1; }
 svg { display: block; }
-/* 공유 = 파랑(--accent), 내 노트 = 호박색(--mine). 요소마다 --scope 로 받아 씀 */
+/* 공유 = 파랑(--accent), 초대 수락 대기 = 노랑(--wait), 내 노트 = 호박색(--mine). 요소마다 --scope 로 받아 씀 */
 :root, .scope-shared { --scope: var(--accent); --scope-soft: var(--accent-soft); --on-scope: var(--on-accent); }
+.scope-pending, #app[data-scope="pending"] { --scope: var(--wait); --scope-soft: var(--wait-soft); --on-scope: var(--on-wait); }
 .scope-private, #app[data-scope="private"] { --scope: var(--mine); --scope-soft: var(--mine-soft); --on-scope: var(--on-mine); }
 .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--scope); flex: none; }
 .gutter { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
@@ -354,6 +358,8 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .share-row { font-size: var(--fs-md); font-weight: 600; }
 .share-row input { accent-color: var(--accent); }
 .share-row input:disabled + span { color: var(--muted); }
+.share-state { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 999px; background: var(--scope-soft); color: var(--scope); font-size: var(--fs-md); width: fit-content; }
+.share-state .dot { width: 8px; height: 8px; }
 .share-confirm { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; padding: 12px; border-radius: var(--r); background: var(--faint); font-size: var(--fs-sm); }
 .share-confirm > span:first-child { flex-basis: 100%; }
 .btn.danger-btn { background: var(--danger); color: var(--bg); }
