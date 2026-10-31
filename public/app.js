@@ -262,6 +262,12 @@ function declineInvite(inv) {
 }
 
 /* ---------- tabs & views ---------- */
+// 톱니바퀴 (24 격자로 그려서 동그랗게)
+function gearIcon() {
+  const g = svg('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>', "1.7");
+  g.setAttribute("viewBox", "0 0 24 24");
+  return g;
+}
 const svg = (d, w = "1.8") => {
   const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   s.setAttribute("viewBox", "0 0 20 20"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor");
@@ -296,38 +302,13 @@ function renderTabs() {
     el("button", { class: "tab tab-trash", role: "tab", "aria-selected": String(S.trashView), onclick: () => openTrash(true) },
       svg('<path d="M4 6h12M8 6V4.5h4V6M6 6l.7 10h6.6L14 6"/>'), "휴지통"),
   );
-  // 지금 선택한 노트북을 지우는(또는 나가는) 버튼은 윗줄 맨 오른쪽에 하나만
-  // 노트북이 하나만 남으면 지울 수 없음
-  // 노트북 줄 오른쪽 끝: [⚙ 설정] [🗑 삭제]. 설정은 직접 만든/초대받은 노트북에만 ('노트'는 없음)
-  $("#nbActions").replaceChildren(...(S.trashView ? [] : [
-    isSpace(S.tab) && spaceById(S.tab) && el("button", { class: "icon-btn nb-gear", "aria-label": `‘${spaceName(S.tab)}’ 노트북 설정`, title: "노트북 설정 (이름 · 초대)", "aria-expanded": String(S.panel === S.tab),
-      onclick: () => (S.panel === S.tab ? closePanel() : openPanel(S.tab)) },
-      svg('<path d="M8.7 2.6h2.6l.4 1.9c.5.2.9.4 1.3.7l1.8-.7 1.3 2.2-1.5 1.3c.1.5.1 1 0 1.5l1.5 1.3-1.3 2.2-1.8-.7c-.4.3-.8.5-1.3.7l-.4 1.9H8.7l-.4-1.9c-.5-.2-.9-.4-1.3-.7l-1.8.7-1.3-2.2 1.5-1.3c-.1-.5-.1-1 0-1.5L3.9 6.7l1.3-2.2 1.8.7c.4-.3.8-.5 1.3-.7z" stroke-width="1.5"/><circle cx="10" cy="10" r="2.3"/>')),
-    S.tab && orderedTabs().length > 1 && tabDeleteBtn(S.tab),
-  ]).filter(Boolean));
+  // 노트북 줄 오른쪽 끝: ⚙ 노트북 설정 (이름 · 공유 · 삭제)
+  $("#nbActions").replaceChildren(...(S.trashView || !S.tab ? [] : [
+    el("button", { class: "icon-btn nb-gear", "aria-label": `‘${S.tab === "private" ? "노트" : spaceName(S.tab)}’ 노트북 설정`, title: "노트북 설정", "aria-expanded": String(S.panel === S.tab),
+      onclick: () => (S.panel === S.tab ? closePanel() : openPanel(S.tab)) }, gearIcon()),
+  ]));
 }
 
-// 윗줄 맨 오른쪽의 아이콘: 지금 노트북을 만든 사람은 삭제, 다른 멤버는 나가기. 한 번 더 눌러야 실행
-// ("노트"를 지우면 안의 노트를 지우고 노트북 줄에서 숨김)
-function tabDeleteBtn(sid) {
-  const sp = sid === "private" ? { id: "private", name: "노트", owner: S.uid } : spaceById(sid);
-  if (!sp) return null;
-  const owner = sp.owner === S.uid;
-  const verb = owner ? "삭제" : "나가기";
-  const icon = owner
-    ? '<path d="M4 6h12M8 6V4.5h4V6M6 6l.7 10h6.6L14 6"/>'
-    : '<path d="M8.5 4H5v12h3.5M12 7l3 3-3 3M15 10H8"/>';
-  const btn = el("button", { class: "icon-btn tab-del", "aria-label": `‘${sp.name || "노트북"}’ 노트북 ${verb}`, title: `노트북 ${verb}` },
-    svg(icon), el("span", { class: "tab-del-label", text: owner ? "삭제할까요?" : "나갈까요?" }));
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (btn.classList.contains("armed")) { clearTimeout(btn._t); sid === "private" ? removePrivate() : owner ? removeSpace(sp) : leaveSpace(sp); return; }
-    btn.classList.add("armed");
-    btn.setAttribute("aria-label", `한 번 더 누르면 ‘${sp.name || "노트북"}’ 노트북을 ${owner ? "모두에게서 삭제해요" : "나가요"}`);
-    btn._t = setTimeout(() => { btn.classList.remove("armed"); btn.setAttribute("aria-label", `‘${sp.name || "노트북"}’ 노트북 ${verb}`); }, 3000);
-  });
-  return btn;
-}
 
 /* ---------- 노트북 순서 바꾸기 (끌어서 놓기) ---------- */
 // 마우스는 조금 움직이면 바로, 터치는 꾹 누른 뒤(0.35초) 끌기 시작. 그냥 밀면 탭 줄이 스크롤됨
@@ -405,7 +386,7 @@ function savePrefs() {
 // '노트' 노트북 삭제: 안의 노트를 지우고 노트북 줄에서 숨김
 async function removePrivate() {
   if (S.open && S.open.scope === "private") { clearTimeout(S.saveTimer); S.open = null; S.dirty = false; }
-  S.hidePrivate = true;
+  S.hidePrivate = true; S.panel = null;
   S.tab = orderedTabs()[0].id;
   renderAll(); if (isSpace(S.tab)) renderProjects();
   savePrefs();
@@ -649,7 +630,7 @@ function openPanel(which) {
   renderTabs(); renderView(); renderRail();
   buildPanel();
   $("#app").dataset.view = "detail";
-  $("#spName").focus();
+  if ($("#spName")) $("#spName").focus();
 }
 function closePanel() {
   S.panel = null;
@@ -689,6 +670,13 @@ function buildPanel() {
     const join = el("form", { class: "panel-sec end" }, field("코드로 참여하기", code, joinBtn));
     join.addEventListener("submit", (e) => { e.preventDefault(); joinByCode(code.value, joinBtn); });
     box.replaceChildren(el("div", { class: "panel" }, form, email ? null : join));
+    return;
+  }
+  // 기본 노트북 '노트': 이름·공유 설정 없이 삭제만
+  if (S.panel === "private") {
+    box.replaceChildren(el("div", { class: "panel" },
+      el("p", { class: "fld-help", text: "‘노트’는 나만 보는 기본 노트북이에요." }),
+      deleteSection({ id: "private", name: "노트", owner: S.uid })));
     return;
   }
 
@@ -741,15 +729,37 @@ function buildPanel() {
       el("button", { type: "button", class: "btn danger-btn", text: "공유 끄기", onclick: () => { confirmRow.hidden = true; shareBox.checked = false; shareSecs.hidden = true; setShared(sp, false); } }));
     confirmRow.hidden = false;
   });
-  const danger = el("button", { class: "link danger", text: isOwner ? "노트북 삭제" : "노트북 나가기" });
-  danger.addEventListener("click", () => arm(danger, isOwner ? "한 번 더 누르면 모두에게서 삭제돼요" : "한 번 더 누르면 나가요", () => (isOwner ? removeSpace(sp) : leaveSpace(sp))));
   box.replaceChildren(
     el("div", { class: "panel" },
       nameForm,
       shareSec,
       shareSecs,
-      el("div", { class: "panel-sec end" }, danger)));
+      deleteSection(sp)));
   renderPanelLists();
+}
+
+// 설정창 맨 아래: 노트북 삭제(만든 사람) 또는 나가기(멤버). 누르면 경고를 보여 주고 한 번 더 확인
+function deleteSection(sp) {
+  const owner = sp.owner === S.uid;
+  if (orderedTabs().length <= 1) return el("div", { class: "panel-sec end" }, el("p", { class: "fld-help", text: "마지막 노트북은 지울 수 없어요." }));
+  const warn = el("div", { class: "share-confirm delete-confirm", role: "alert", hidden: true });
+  const btn = el("button", { type: "button", class: "link danger strong", text: owner ? "노트북 삭제" : "노트북 나가기" });
+  btn.addEventListener("click", () => {
+    const n = (S.notes[sp.id] || []).length + (S.trash[sp.id] || []).length;
+    const p = (S.projects[sp.id] || []).length;
+    const others = ((spaceById(sp.id) || sp).members || []).filter((id) => id !== S.uid).length;
+    const text = owner
+      ? `이 노트북을 지우면 안에 있는 모든 노트(${n}개)${p ? `와 프로젝트(${p}개)` : ""}도 함께 지워지고, 되살릴 수 없어요.${others ? " 함께 쓰는 멤버에게서도 사라져요." : ""} 그래도 삭제할까요?`
+      : "나가면 이 노트북의 노트를 더 볼 수 없어요. 다시 들어오려면 초대를 받아야 해요. 그래도 나갈까요?";
+    warn.replaceChildren(
+      el("span", { text }),
+      el("span", { class: "grow" }),
+      el("button", { type: "button", class: "link", text: "취소", onclick: () => { warn.hidden = true; btn.hidden = false; } }),
+      el("button", { type: "button", class: "btn danger-btn", text: owner ? "삭제" : "나가기",
+        onclick: () => (sp.id === "private" ? removePrivate() : owner ? removeSpace(spaceById(sp.id) || sp) : leaveSpace(spaceById(sp.id) || sp)) }));
+    warn.hidden = false; btn.hidden = true;
+  });
+  return el("div", { class: "panel-sec end" }, btn, warn);
 }
 
 function renderPanelLists() {

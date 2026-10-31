@@ -290,13 +290,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .nb-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; flex: none; }
 .nb-gear[aria-expanded="true"] { color: var(--ink); background: var(--faint); }
 .nb-actions:empty { display: none; }
-.tab-del { gap: 4px; margin-right: -8px; }
-.tab-del svg { width: 17px; height: 17px; }
-.tab-del:hover { color: var(--danger); background: transparent; }
 .tab-del-label { display: none; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
-.tab-del.armed { display: flex; width: auto; padding: 0 10px; color: var(--danger); background: var(--faint); }
-.tab-del.armed .tab-del-label { display: inline; }
-.tabs.reordering .tab-del { display: none; }
 .tab.dragging { color: var(--ink); background: var(--faint); border-radius: 6px 6px 0 0; padding: 0 10px; margin: 0 -10px; z-index: 1; cursor: grabbing; }
 .tab-add[aria-expanded="true"] { color: var(--ink); background: var(--faint); }
 .invites { display: flex; flex-direction: column; background: var(--accent-soft); }
@@ -328,6 +322,8 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .share-confirm > span:first-child { flex-basis: 100%; }
 .btn.danger-btn { background: var(--danger); color: var(--bg); }
 .btn.danger-btn:hover { background: var(--danger); opacity: .88; }
+.link.danger.strong { color: var(--danger); font-weight: 600; }
+.delete-confirm { width: 100%; box-sizing: border-box; }
 
 @media (max-width: 760px) {
   .top { column-gap: 12px; }
