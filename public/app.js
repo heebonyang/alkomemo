@@ -295,7 +295,8 @@ function renderTabs() {
       onclick: (e) => { if (S.drag && S.drag.justDropped) { e.preventDefault(); return; } switchTab(t.id); },
       onpointerdown: (e) => dragStart(e, t.id),
       onkeydown: (e) => { if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { e.preventDefault(); moveTab(t.id, e.key === "ArrowLeft" ? -1 : 1); } } },
-      el("span", { class: "dot" }), t.name)),
+      el("span", { class: "dot" }), t.name)));
+  $("#tabFixed").replaceChildren(
     el("button", { class: "icon-btn tab-add", id: "tabAdd", "aria-label": "새 노트북 만들기", title: "새 노트북 만들기", "aria-haspopup": "dialog", "aria-expanded": String(!$("#newMenu").hidden), "aria-controls": "newMenu",
       onclick: (e) => { e.stopPropagation(); toggleNewMenu(); } }, svg('<path d="M10 4v12M4 10h12"/>')),
     // 휴지통: 모든 노트북에서 지운 노트를 한곳에 모아 보여 줌
@@ -340,7 +341,7 @@ function dragMove(e) {
   // 손가락/마우스가 지나간 탭 자리로 옮김
   const others = [...$("#tabs").querySelectorAll(".tab:not(.dragging)")];
   const after = others.find((t) => { const r = t.getBoundingClientRect(); return e.clientX < r.left + r.width / 2; });
-  $("#tabs").insertBefore(d.tab, after || $("#tabAdd"));
+  if (after) $("#tabs").insertBefore(d.tab, after); else $("#tabs").append(d.tab);
 }
 function dragEnd() {
   const d = S.drag;

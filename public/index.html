@@ -285,6 +285,8 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab { flex: none; }
 .tab-add { align-self: center; margin-left: -8px; }
+/* 노트북이 많아도 + 와 휴지통은 밀리지 않고 그 자리에 (노트북 탭만 옆으로 넘겨 봄) */
+.tab-fixed { display: flex; align-items: stretch; gap: 20px; flex: none; }
 .tab { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .tabs.reordering { cursor: grabbing; }
 .nb-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; flex: none; }
@@ -381,6 +383,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
   <div class="brand">알코 노트 <small>ALKO NOTE</small> <span class="dev" id="devBadge" hidden>dev</span></div>
   <div class="nb-row">
     <nav class="tabs" id="tabs" role="tablist" aria-label="노트북"></nav>
+    <div class="tab-fixed" id="tabFixed"></div>
     <div class="nb-actions" id="nbActions"></div>
   </div>
   <div class="me" id="me"></div>
