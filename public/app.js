@@ -1005,7 +1005,7 @@ function renderPanelLists() {
   $("#spPending").replaceChildren(...(pend.length ? pend.map((inv) => el("div", { class: "person" },
     el("span", { class: "person-name", text: inv.email }),
     el("span", { class: "person-meta", text: "수락 대기 중" }),
-    el("button", { class: "link", text: "취소", onclick: () => deleteDoc(docAt("invites", inv.id)).catch((e) => setBanner(errText(e, "초대 취소에"))) })))
+    el("button", { class: "link", text: "취소", onclick: (e) => { e.stopPropagation(); cancelInvite(sp, inv); } })))
     : [el("span", { class: "hint tight", text: "대기 중인 초대가 없어요." })]));
 }
 
@@ -1093,6 +1093,19 @@ async function renameSpace(sid, raw) {
     for (const inv of S.pending[sid] || []) await updateDoc(docAt("invites", inv.id), { spaceName: name });
     setMsg("이름을 바꿨어요.");
   } catch (e) { setMsg(errText(e, "이름 저장에"), true); }
+}
+
+// 보낸 초대 취소. 마지막 초대를 취소했고 아직 아무도 수락하지 않았으면 다시 일반 노트북(호박색)으로
+async function cancelInvite(sp, inv) {
+  try {
+    await deleteDoc(docAt("invites", inv.id));
+    S.pending[sp.id] = (S.pending[sp.id] || []).filter((x) => x.id !== inv.id);
+    const cur = spaceById(sp.id) || sp;
+    if (!S.pending[sp.id].length && !isConfirmed(cur)) {
+      await setShared(cur, false);
+      if (S.panel === sp.id) buildPanel();
+    }
+  } catch (e) { setBanner(errText(e, "초대 취소에")); }
 }
 
 // 공유 켜기/끄기. 끄기는 아직 아무도 초대를 수락하지 않았을 때만 (보낸 초대만 취소, 멤버는 건드리지 않음)
