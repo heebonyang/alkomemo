@@ -9,6 +9,12 @@ service cloud.firestore {
     function myEmail() {
       return request.auth.token.email.lower();
     }
+    // 초대 메일 확인: 인증된 이메일이거나, 구글 로그인(메일 주소를 구글이 보증)일 때.
+    // 구글 계정이라도 gmail 이 아닌 주소(네이버 등)는 Firebase 가 email_verified=false 로 주기 때문
+    function emailTrusted() {
+      return request.auth.token.email_verified == true
+        || request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
     function spaceData(sid) {
       return get(/databases/$(database)/documents/spaces/$(sid)).data;
     }
@@ -49,7 +55,7 @@ service cloud.firestore {
       allow update: if signedIn() && (
         request.auth.uid in resource.data.members
         || (
-          request.auth.token.email_verified == true
+          emailTrusted()
           && exists(/databases/$(database)/documents/invites/$(sid + '__' + myEmail()))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberEmails'])
           && request.resource.data.members.toSet().difference(resource.data.members.toSet()) == [request.auth.uid].toSet()
@@ -76,7 +82,7 @@ service cloud.firestore {
     // 초대장: 문서 id 는 "<공유 노트 id>__<이메일>"
     match /invites/{id} {
       allow read: if signedIn() && (
-        (request.auth.token.email_verified == true && resource.data.email == myEmail())
+        (emailTrusted() && resource.data.email == myEmail())
         || isMember(resource.data.spaceId)
       );
       allow create: if isMember(request.resource.data.spaceId)
@@ -84,7 +90,7 @@ service cloud.firestore {
         && request.resource.data.invitedBy == request.auth.uid;
       allow update: if isMember(resource.data.spaceId);
       allow delete: if signedIn() && (
-        (request.auth.token.email_verified == true && resource.data.email == myEmail())
+        (emailTrusted() && resource.data.email == myEmail())
         || isMember(resource.data.spaceId)
       );
     }

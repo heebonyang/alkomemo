@@ -249,7 +249,8 @@ function start(u) {
     }))), onErr),
     watch(notesCol("private"), { byUpdated: true }, (s) => onNotes("private", docs(s), s), onErr),
   );
-  if (S.email) S.unsubs.push(watch(collection("invites"), { where: ["email", "==", S.email] }, (s) => { S.invites = docs(s); renderInvites(); }, onErr));
+  if (S.email) S.unsubs.push(watch(collection("invites"), { where: ["email", "==", S.email] }, (s) => { S.invites = docs(s); renderInvites(); },
+    (e) => setBanner(e && e.code === "permission-denied" ? `받은 초대장을 불러오지 못했어요. (${S.email}) 다시 로그인해 보세요.` : errText(e, "초대장 불러오기에"))));
   renderAll();
 }
 
