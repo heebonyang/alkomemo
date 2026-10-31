@@ -296,18 +296,20 @@ function renderTabs() {
       onpointerdown: (e) => dragStart(e, t.id),
       onkeydown: (e) => { if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { e.preventDefault(); moveTab(t.id, e.key === "ArrowLeft" ? -1 : 1); } } },
       el("span", { class: "dot" }), t.name)));
-  $("#tabFixed").replaceChildren(
+  // 고른 노트북이 바뀌면 그 탭이 보이도록 탭 줄을 넘겨 줌 (휴대폰처럼 좁을 때)
+  const picked = $("#tabs .tab[aria-selected='true']");
+  if (picked && S.shownTab !== S.tab) { S.shownTab = S.tab; picked.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+  // 노트북 줄 오른쪽 끝에 고정: [+ 새 노트북] [⚙ 노트북 설정] [🗑 휴지통]
+  const gearName = S.tab === "private" ? "노트" : spaceName(S.tab);
+  $("#tabFixed").replaceChildren(...[
     el("button", { class: "icon-btn tab-add", id: "tabAdd", "aria-label": "새 노트북 만들기", title: "새 노트북 만들기", "aria-haspopup": "dialog", "aria-expanded": String(!$("#newMenu").hidden), "aria-controls": "newMenu",
       onclick: (e) => { e.stopPropagation(); toggleNewMenu(); } }, svg('<path d="M10 4v12M4 10h12"/>')),
+    S.tab && el("button", { class: "icon-btn nb-gear", "aria-label": `‘${gearName}’ 노트북 설정`, title: "노트북 설정", "aria-expanded": String(!S.trashView && S.panel === S.tab),
+      onclick: () => { if (S.trashView) S.trashView = false; else if (S.panel === S.tab) return closePanel(); openPanel(S.tab); } }, gearIcon()),
     // 휴지통: 모든 노트북에서 지운 노트를 한곳에 모아 보여 줌
-    el("button", { class: "tab tab-trash", role: "tab", "aria-selected": String(S.trashView), onclick: () => openTrash(true) },
-      svg('<path d="M4 6h12M8 6V4.5h4V6M6 6l.7 10h6.6L14 6"/>'), "휴지통"),
-  );
-  // 노트북 줄 오른쪽 끝: ⚙ 노트북 설정 (이름 · 공유 · 삭제)
-  $("#nbActions").replaceChildren(...(S.trashView || !S.tab ? [] : [
-    el("button", { class: "icon-btn nb-gear", "aria-label": `‘${S.tab === "private" ? "노트" : spaceName(S.tab)}’ 노트북 설정`, title: "노트북 설정", "aria-expanded": String(S.panel === S.tab),
-      onclick: () => (S.panel === S.tab ? closePanel() : openPanel(S.tab)) }, gearIcon()),
-  ]));
+    el("button", { class: "icon-btn nb-trash", "aria-label": "휴지통", title: "휴지통", "aria-pressed": String(S.trashView), onclick: () => openTrash(!S.trashView) },
+      svg('<path d="M4 6h12M8 6V4.5h4V6M6 6l.7 10h6.6L14 6"/>')),
+  ].filter(Boolean));
 }
 
 

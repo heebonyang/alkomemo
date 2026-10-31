@@ -205,8 +205,6 @@ svg { display: block; }
 .swipe:not(.open):not(.dragging) .swipe-del { visibility: hidden; }
 .swipe-del { position: absolute; top: 0; right: 0; bottom: 0; width: 80px; background: var(--danger); color: #fff; font-size: var(--fs-sm); font-weight: 600; }
 /* 휴지통 */
-.tab-trash { --scope: var(--ink); gap: 6px; }
-.tab-trash svg { width: 15px; height: 15px; }
 .trash-head { gap: 12px; }
 .trash-count { font-size: var(--fs-sm); color: var(--muted); }
 .item.trashed .item-meta .dot { vertical-align: middle; margin: 0 2px 2px 0; }
@@ -286,12 +284,12 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .tab { flex: none; }
 .tab-add { align-self: center; margin-left: -8px; }
 /* 노트북이 많아도 + 와 휴지통은 밀리지 않고 그 자리에 (노트북 탭만 옆으로 넘겨 봄) */
-.tab-fixed { display: flex; align-items: stretch; gap: 20px; flex: none; }
+.tab-fixed { display: flex; align-items: center; gap: 2px; flex: none; margin-left: auto; margin-right: -9px; }
+.tab-fixed .tab-add { margin-left: 0; }
+.nb-trash[aria-pressed="true"] { color: var(--ink); background: var(--faint); }
 .tab { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .tabs.reordering { cursor: grabbing; }
-.nb-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; flex: none; }
 .nb-gear[aria-expanded="true"] { color: var(--ink); background: var(--faint); }
-.nb-actions:empty { display: none; }
 .tab-del-label { display: none; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
 .tab.dragging { color: var(--ink); background: var(--faint); border-radius: 6px 6px 0 0; padding: 0 10px; margin: 0 -10px; z-index: 1; cursor: grabbing; }
 .tab-add[aria-expanded="true"] { color: var(--ink); background: var(--faint); }
@@ -384,7 +382,6 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
   <div class="nb-row">
     <nav class="tabs" id="tabs" role="tablist" aria-label="노트북"></nav>
     <div class="tab-fixed" id="tabFixed"></div>
-    <div class="nb-actions" id="nbActions"></div>
   </div>
   <div class="me" id="me"></div>
 </header>
