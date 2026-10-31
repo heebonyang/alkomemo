@@ -238,9 +238,9 @@ function start(u) {
       S.tabOrder = (d && d.data().order) || [];
       S.hidePrivate = !!(d && d.data().hidePrivate);
       // 지운 '노트' 노트북을 보고 있었다면 다른 노트북으로
-      if (S.tab === "private" && !orderedTabs().some((t) => t.id === "private")) { S.tab = orderedTabs()[0].id; S.open = null; renderAll(); if (isSpace(S.tab)) renderProjects(); return; }
+      if (S.tab === "private" && !orderedTabs().some((t) => t.id === "private")) { S.tab = firstTab(); S.open = null; renderAll(); if (isSpace(S.tab)) renderProjects(); return; }
       // 처음 열 때는 내가 정한 순서의 첫 탭을 보여 줌
-      if (!S.tabChosen && !S.open && !S.panel && S.spacesLoaded) { S.tab = orderedTabs()[0].id; renderAll(); if (isSpace(S.tab)) renderProjects(); }
+      if (!S.tabChosen && !S.open && !S.panel && S.spacesLoaded) { S.tab = firstTab(); renderAll(); if (isSpace(S.tab)) renderProjects(); }
       else renderTabs();
     }, () => {}),
     watch(collection("profiles"), {}, (s) => {
@@ -314,14 +314,12 @@ function onSpaces(list) {
       }, () => {}),
     ];
   }
-  // 노트북을 모두 지워서 '노트'가 다시 나타났으면, 그 뒤로는 계속 보이게
-  if (S.spacesLoaded && !list.length && S.hidePrivate) { S.hidePrivate = false; savePrefs(); }
   if (!S.spacesLoaded) { S.spacesLoaded = true; migrateLegacy(); }
   if (S.nextTab && ids.has(S.nextTab)) { S.tab = S.nextTab; S.nextTab = null; }
   // 사용자가 직접 탭을 고르기 전이면 첫 공유 노트를 보여 줌
   const autoPick = !S.tabChosen && S.tab === "private" && !S.open && list.length;
   const privateGone = S.tab === "private" && S.hidePrivate && list.length;
-  if (!S.tab || autoPick || privateGone || (isSpace(S.tab) && !ids.has(S.tab))) S.tab = S.tabChosen ? (list.length ? list[0].id : "private") : orderedTabs()[0].id;
+  if (!S.tab || autoPick || privateGone || (isSpace(S.tab) && !ids.has(S.tab))) S.tab = S.tabChosen ? (list.length ? list[0].id : firstTab()) : firstTab();
   renderAll();
   if (S.panel && S.panel !== "new") renderPanelLists();
 }
@@ -495,11 +493,14 @@ function renderAll() { renderTabs(); renderView(); renderRail(); }
 // 저장된 순서대로. 순서에 없는 탭(새로 만들었거나 초대받은 탭)은 뒤에 붙음
 function orderedTabs() {
   const tabs = S.spaces.map((s) => ({ id: s.id, name: s.name || "노트북" }));
-  // '노트' 노트북은 지웠으면 숨김. 단, 노트북이 하나도 없으면 다시 보여 줌
-  if (!S.hidePrivate || !tabs.length) tabs.push({ id: "private", name: "노트" });
+  // '노트' 노트북은 지웠으면 숨김 (노트북이 하나도 없을 수도 있음)
+  if (!S.hidePrivate) tabs.push({ id: "private", name: "노트" });
   const rank = (id) => { const i = S.tabOrder.indexOf(id); return i < 0 ? Infinity : i; };
   return tabs.map((t, i) => ({ ...t, i })).sort((a, b) => rank(a.id) - rank(b.id) || a.i - b.i);
 }
+
+// 첫 노트북 id. 노트북이 하나도 없으면 null
+const firstTab = () => (orderedTabs()[0] || {}).id || null;
 
 function renderTabs() {
   if (S.drag && S.drag.active) { S.drag.stale = true; return; } // 끌고 있는 중엔 다시 그리지 않음
@@ -604,7 +605,7 @@ function savePrefs() {
 async function removePrivate() {
   if (S.open && S.open.scope === "private") { clearTimeout(S.saveTimer); S.open = null; S.dirty = false; }
   S.hidePrivate = true; S.panel = null;
-  S.tab = orderedTabs()[0].id;
+  S.tab = firstTab();
   renderAll(); if (isSpace(S.tab)) renderProjects();
   savePrefs();
   try {
@@ -634,7 +635,7 @@ function renderView() {
   const board = isSpace(S.tab) && S.board;
   $("#projView").hidden = panel || hasOpen || !board;
   $("#emptyView").hidden = panel || hasOpen || board;
-  $("#emptyText").textContent = S.trashView ? "지운 노트는 휴지통에서 되살리거나 완전히 지울 수 있어요." : "목록에서 노트를 열거나 + 로 새 노트를 만드세요.";
+  $("#emptyText").textContent = S.trashView ? "지운 노트는 휴지통에서 되살리거나 완전히 지울 수 있어요." : !S.tab ? "" : "목록에서 노트를 열거나 + 로 새 노트를 만드세요.";
 
 }
 
@@ -651,7 +652,14 @@ function switchTab(tab) {
 
 function renderRail() {
   const pane = $("#list");
-  if (!S.tab) return;
+  // 노트북이 하나도 없으면 새로 만들어 보라는 안내
+  $("#app").dataset.empty = S.tab ? "" : "1";
+  if (!S.tab) {
+    $("#listTools").hidden = true; $("#trashBar").hidden = !S.trashView;
+    if (S.trashView) { renderTrash(); return; }
+    pane.replaceChildren(noBooksHint());
+    return;
+  }
   const scope = S.tab;
   if (!S.loaded[scope]) { pane.replaceChildren(el("div", { class: "hint", text: "불러오는 중…" })); return; }
   $("#listTools").hidden = S.trashView || !!S.select;
@@ -695,6 +703,13 @@ function renderRail() {
     swipeable(row, item, n.id);
     return row;
   }));
+}
+
+function noBooksHint() {
+  return el("div", { class: "no-books" },
+    el("p", { text: "노트북이 하나도 없어요." }),
+    el("p", { class: "hint tight", text: "맨 윗줄 + 를 눌러 새 노트북을 만들어 보세요." }),
+    el("button", { class: "btn primary", text: "새 노트북 만들기", onclick: (e) => { e.stopPropagation(); toggleNewMenu(true); } }));
 }
 
 // 휴지통 화면: 되살리기 / 완전히 지우기 / 비우기 (모든 노트북)
@@ -969,7 +984,6 @@ function buildPanel() {
 // 다른 멤버와 함께 쓰는 중이면 (만든 사람이어도) '나가기'만 있고, 노트는 남은 사람들에게 그대로 남음.
 // 혼자 쓰는 노트북일 때만 '삭제'
 function deleteSection(sp) {
-  if (orderedTabs().length <= 1) return el("div", { class: "panel-sec end" }, el("p", { class: "fld-help", text: "마지막 노트북은 지울 수 없어요." }));
   const others = () => ((spaceById(sp.id) || sp).members || []).filter((id) => id !== S.uid);
   const leave = sp.id !== "private" && (others().length > 0 || sp.owner !== S.uid);
   const warn = el("div", { class: "share-confirm delete-confirm", role: "alert", hidden: true });
@@ -1611,7 +1625,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.select
 $("#searchClose").addEventListener("click", closeSearch);
 $("#search").addEventListener("keydown", (e) => { if (e.key === "Escape") closeSearch(); });
 $("#spaceClose").addEventListener("click", closePanel);
-$("#newBtn").addEventListener("click", () => createNote(S.tab));
+$("#newBtn").addEventListener("click", () => S.tab && createNote(S.tab));
 document.addEventListener("click", (e) => { if (!$("#newMenu").hidden && !e.target.closest("#newMenu")) toggleNewMenu(false); });
 $("#newMenu").addEventListener("keydown", (e) => { if (e.key === "Escape") { toggleNewMenu(false); $("#tabAdd") && $("#tabAdd").focus(); } });
 // 휴대폰은 키보드가 올라오고 내려갈 때도 resize 가 오므로 닫지 않고 자리만 다시 잡음
