@@ -133,6 +133,13 @@ svg { display: block; }
 .bell-text { overflow-wrap: anywhere; }
 .bell-time { font-size: var(--fs-xs); color: var(--muted); }
 .bell-empty { padding: 4px 10px; }
+.bell-head { display: flex; align-items: center; justify-content: space-between; padding-right: 10px; }
+.bell-head .link { font-size: var(--fs-xs); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.bell-body { flex: 1; }
+.bell-del { width: 24px; height: 24px; margin: -2px -4px 0 0; opacity: 0; }
+.bell-del svg { width: 12px; height: 12px; }
+.bell-item:hover .bell-del, .bell-del:focus-visible { opacity: 1; }
+@media (hover: none) { .bell-del { opacity: 1; } }
 .acct-btn { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; margin-right: -4px; }
 .acct-btn:hover .avatar, .acct-btn[aria-expanded="true"] .avatar { box-shadow: 0 0 0 2px var(--line); }
 .avatar { display: block; border-radius: 50%; object-fit: cover; flex: none; }

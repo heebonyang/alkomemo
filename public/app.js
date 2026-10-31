@@ -395,6 +395,13 @@ function logActivity(id, entry) {
   S.activityIds.add(id);
   setDoc(docAt("users", S.uid, "activity", id), entry).catch(() => S.activityIds.delete(id));
 }
+// 알림 지우기: 문서를 없애지 않고 deleted 표시만 남김 (아직 대기 중인 초대 기록이 다시 생기지 않도록)
+function deleteActivity(list) {
+  const ids = new Set(list.map((a) => a.id));
+  S.activity = S.activity.map((a) => (ids.has(a.id) ? { ...a, deleted: true } : a));
+  renderBell();
+  for (const a of list) setDoc(docAt("users", S.uid, "activity", a.id), { deleted: true, createdAt: a.createdAt || 0 }).catch(() => {});
+}
 const INCOMING = new Set(["received", "joined", "left"]);
 function activityText(a) {
   const book = `‘${a.spaceName || "노트북"}’`;
@@ -414,7 +421,7 @@ function renderBell() {
   const btn = $("#bellBtn");
   if (!btn) return;
   const lastSeen = S.seen._bell || 0;
-  const unread = S.activity.filter((a) => (a.type === "joined" || a.type === "left") && a.createdAt > lastSeen).length;
+  const unread = S.activity.filter((a) => !a.deleted && (a.type === "joined" || a.type === "left") && a.createdAt > lastSeen).length;
   const count = S.invites.length + unread;
   const badge = $("#bellBadge");
   badge.hidden = !count; badge.textContent = count > 9 ? "9+" : String(count);
@@ -429,13 +436,18 @@ function fillBell() {
     el("div", { class: "bell-actions" },
       el("button", { class: "link", text: "거절", onclick: () => declineInvite(inv) }),
       el("button", { class: "btn primary", text: "수락", onclick: () => { acceptInvite(inv); toggleBell(false); } }))));
-  const log = S.activity.slice(0, 50).map((a) => el("div", { class: "bell-item" + (INCOMING.has(a.type) && a.createdAt > lastSeen ? " unread" : "") },
+  const shown = S.activity.filter((a) => !a.deleted);
+  const log = shown.slice(0, 50).map((a) => el("div", { class: "bell-item" + (INCOMING.has(a.type) && a.createdAt > lastSeen ? " unread" : "") },
     el("span", { class: "bell-dot " + a.type }),
-    el("div", { class: "bell-body" }, el("div", { class: "bell-text" }, ...activityText(a)), el("div", { class: "bell-time", text: fmtStamp.format(a.createdAt) }))));
+    el("div", { class: "bell-body" }, el("div", { class: "bell-text" }, ...activityText(a)), el("div", { class: "bell-time", text: fmtStamp.format(a.createdAt) })),
+    el("button", { class: "icon-btn bell-del", "aria-label": "이 알림 지우기", title: "지우기", onclick: (e) => { e.stopPropagation(); deleteActivity([a]); } },
+      svg('<path d="M6 6l8 8M14 6l-8 8"/>'))));
   $("#bellMenu").replaceChildren(...[
     el("div", { class: "menu-label bell-title", text: "알림" }),
     invites.length && el("div", { class: "bell-sec" }, el("div", { class: "menu-label", text: "받은 초대" }), ...invites),
-    el("div", { class: "bell-sec" }, el("div", { class: "menu-label", text: "기록" }),
+    el("div", { class: "bell-sec" },
+      el("div", { class: "menu-label bell-head" }, el("span", { text: "기록" }),
+        shown.length ? el("button", { class: "link", text: "모두 지우기", onclick: (e) => { e.stopPropagation(); deleteActivity(shown); } }) : null),
       ...(log.length ? log : [el("p", { class: "hint tight bell-empty", text: "아직 기록이 없어요." })])),
   ].filter(Boolean));
   placeBell();
