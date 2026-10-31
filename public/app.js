@@ -319,6 +319,7 @@ function onSpaces(list) {
   // 사용자가 직접 탭을 고르기 전이면 첫 공유 노트를 보여 줌
   const autoPick = !S.tabChosen && S.tab === "private" && !S.open && list.length;
   const privateGone = S.tab === "private" && S.hidePrivate && list.length;
+  if (isSpace(S.tab) && !ids.has(S.tab) && S.tabChosen) { moveOffTab(S.tab); if (S.panel && S.panel !== "new") renderPanelLists(); return; }
   if (!S.tab || autoPick || privateGone || (isSpace(S.tab) && !ids.has(S.tab))) S.tab = S.tabChosen ? (list.length ? list[0].id : firstTab()) : firstTab();
   renderAll();
   if (S.panel && S.panel !== "new") renderPanelLists();
@@ -501,9 +502,32 @@ function orderedTabs() {
 
 // 첫 노트북 id. 노트북이 하나도 없으면 null
 const firstTab = () => (orderedTabs()[0] || {}).id || null;
+// 지우거나 나간 노트북 대신 보여 줄 노트북: 바로 왼쪽, 없으면 오른쪽 (노트북이 없으면 null)
+function neighborTab(id) {
+  const ids = (S.shownTabIds || orderedTabs().map((t) => t.id));
+  const now = new Set(orderedTabs().map((t) => t.id).filter((x) => x !== id));
+  const i = ids.indexOf(id);
+  if (i >= 0) {
+    for (let j = i - 1; j >= 0; j--) if (now.has(ids[j])) return ids[j];
+    for (let j = i + 1; j < ids.length; j++) if (now.has(ids[j])) return ids[j];
+  }
+  return [...now][0] || null;
+}
+// 노트북을 지우거나 나간 뒤: 왼쪽 노트북 목록 화면으로 바로 이동 (빈 화면이 남지 않게)
+function moveOffTab(id) {
+  // 사라질 노트북의 노트는 저장하지 않음 (지운 뒤에 다시 생기지 않게)
+  if (S.open && S.open.scope === id) { clearTimeout(S.saveTimer); S.dirty = false; S.open = null; }
+  flushSave();
+  S.tab = neighborTab(id);
+  S.panel = null; S.open = null; S.board = false; S.trashView = false; S.editProject = null; S.tabChosen = true;
+  closeSearch(); endSelect();
+  $("#app").dataset.view = "list";
+  renderAll(); if (isSpace(S.tab)) renderProjects();
+}
 
 function renderTabs() {
   if (S.drag && S.drag.active) { S.drag.stale = true; return; } // 끌고 있는 중엔 다시 그리지 않음
+  S.shownTabIds = orderedTabs().map((t) => t.id);
   $("#tabs").replaceChildren(
     ...orderedTabs().map((t) => el("button", { class: "tab " + scopeClass(t.id), role: "tab", "data-id": t.id, "aria-selected": String(t.id === S.tab && !S.trashView),
       title: "끌어서 순서 바꾸기 (Alt + ←/→)",
@@ -604,9 +628,8 @@ function savePrefs() {
 // '노트' 노트북 삭제: 안의 노트를 지우고 노트북 줄에서 숨김
 async function removePrivate() {
   if (S.open && S.open.scope === "private") { clearTimeout(S.saveTimer); S.open = null; S.dirty = false; }
-  S.hidePrivate = true; S.panel = null;
-  S.tab = firstTab();
-  renderAll(); if (isSpace(S.tab)) renderProjects();
+  S.hidePrivate = true;
+  moveOffTab("private");
   savePrefs();
   try {
     for (const n of [...(S.notes.private || []), ...(S.trash.private || [])]) await deleteDoc(docIn(notesCol("private"), n.id));
@@ -1137,7 +1160,7 @@ async function leaveSpace(sp) {
   try {
     const fields = { members: S.uid };
     if (S.email) fields.memberEmails = S.email;
-    S.panel = null;
+    moveOffTab(sp.id);
     const rest = (sp.members || []).filter((id) => id !== S.uid);
     await addDoc(collection("spaces", sp.id, "notices"), { type: "left", uid: S.uid, name: myLabel(), email: S.email || "", createdAt: Date.now() }).catch(() => {});
     if (sp.owner === S.uid && rest.length) await updateDoc(spaceRef(sp.id), { owner: rest[0], updatedAt: Date.now() });
@@ -1169,8 +1192,7 @@ function markSeen(sid, ts) {
 // 노트북 삭제: 안의 노트·프로젝트·보낸 초대도 함께 지움 (만든 사람만)
 async function removeSpace(sp) {
   try {
-    S.panel = null;
-    if (S.open && S.open.scope === sp.id) { clearTimeout(S.saveTimer); S.open = null; S.dirty = false; }
+    moveOffTab(sp.id);
     const sid = sp.id;
     const notes = [...(S.notes[sid] || []), ...(S.trash[sid] || [])], projects = [...(S.projects[sid] || [])], invites = [...(S.pending[sid] || [])];
     for (const n of notes) await deleteDoc(docIn(notesCol(sid), n.id));
