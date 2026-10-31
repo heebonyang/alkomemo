@@ -1743,13 +1743,18 @@ function initResizer({ handle, cssVar, def, min, max, key }) {
 // 아이콘은 선에서 12px 안쪽, 창(계정·알림·새 노트북)은 선에 오른쪽 끝을 맞춤
 const HEAD_GAP = 12;
 function syncHeaderEdge() {
-  const top = $(".top"), line = $("#colResize"), mark = $("#headLine");
+  const top = $(".top"), line = $("#colResize"), mark = $("#headLine"), rule = $("#headRule"), main = $("main");
   const r = line && line.getBoundingClientRect();
-  if (!r || !r.width || window.matchMedia("(max-width: 760px)").matches) { top.style.paddingRight = ""; mark.hidden = true; S.headLine = null; return; }
+  if (!r || !r.width || window.matchMedia("(max-width: 760px)").matches) {
+    top.style.paddingRight = ""; mark.hidden = true; rule.hidden = true; top.classList.remove("edged"); main.style.removeProperty("--main-edge"); S.headLine = null; return;
+  }
   const x = Math.round(r.left + r.width / 2);
   S.headLine = x;
   top.style.paddingRight = Math.max(20, window.innerWidth - x + HEAD_GAP) + "px";
-  mark.hidden = false; mark.style.left = x - top.getBoundingClientRect().left + "px";
+  const left = top.getBoundingClientRect().left;
+  mark.hidden = false; mark.style.left = x - left + "px";
+  rule.hidden = false; rule.style.width = x - left + "px"; top.classList.add("edged");
+  main.style.setProperty("--main-edge", Math.max(0, x - main.getBoundingClientRect().left) + "px");
 }
 window.addEventListener("resize", syncHeaderEdge);
 initResizer({ handle: "#railResize", cssVar: "--rail-w", def: 300, min: 220, key: "alko.railWidth",
@@ -1757,6 +1762,16 @@ initResizer({ handle: "#railResize", cssVar: "--rail-w", def: 300, min: 220, key
 // 노트 폭은 오른쪽 화면 안에서만: 왼쪽 여백 32px, 오른쪽 끝 20px 남김
 initResizer({ handle: "#colResize", cssVar: "--col-w", def: 720, min: 360, key: "alko.colWidth",
   max: () => ($("main").clientWidth || Infinity) - 52 }); // 로그인 전처럼 안 보일 땐 제한 없음
+// 경계선이 활성화(마우스 올림 · 끄는 중 · 키보드 선택)되면 윗줄 선도 같은 색으로
+{
+  const h = $("#colResize");
+  const update = () => setTimeout(() => {
+    const on = h.matches(":hover") || h.classList.contains("dragging") || document.activeElement === h;
+    if (on) document.body.style.setProperty("--edge-color", getComputedStyle(h).getPropertyValue("--scope").trim() || "var(--accent)");
+    document.body.classList.toggle("edge-hot", on);
+  }, 0);
+  ["pointerenter", "pointerleave", "pointerdown", "pointerup", "pointercancel", "focus", "blur"].forEach((t) => h.addEventListener(t, update));
+}
 
 onUser((u) => {
   teardown();

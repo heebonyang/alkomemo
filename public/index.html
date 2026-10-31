@@ -101,6 +101,11 @@ svg { display: block; }
 .top { position: relative; display: flex; align-items: stretch; column-gap: 40px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
 /* 노트 칸 오른쪽 경계선을 윗줄 맨 위까지 이어 그림 (데스크톱) */
 .head-line { position: absolute; top: 0; bottom: -1px; width: 1px; background: var(--line); pointer-events: none; }
+/* 선에 마우스를 올리거나 끄는 중이면 아래 선과 같이 색이 들어옴 */
+.edge-hot .head-line { width: 2px; margin-left: -1px; background: var(--edge-color, var(--accent)); }
+/* 가로줄도 경계선까지만: 윗줄 아래 줄은 head-rule 로, 노트 칸 위쪽 줄은 배경으로 그 길이만큼 */
+.top.edged { border-bottom-color: transparent; }
+.head-rule { position: absolute; left: 0; bottom: -1px; height: 1px; background: var(--line); pointer-events: none; }
 .brand, .me { height: 56px; display: flex; align-items: center; }
 .brand { gap: 8px; font-weight: 600; font-size: var(--fs-lg); letter-spacing: -0.015em; }
 .brand small { font-weight: 400; font-size: var(--fs-xs); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
@@ -178,6 +183,7 @@ svg { display: block; }
 .rail-resize:focus-visible, .col-resize:focus-visible { outline: none; }
 .app.resizing { cursor: col-resize; user-select: none; }
 .rail-top, .view-head { height: var(--head); flex: none; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+main .view-head { border-bottom: 0; background: linear-gradient(var(--line), var(--line)) left bottom / var(--main-edge, 100%) 1px no-repeat; }
 .new-note { width: var(--h); height: var(--h); flex: none; display: grid; place-items: center; border-radius: var(--r); background: var(--scope); color: var(--on-scope); }
 .new-note[aria-expanded="true"] { opacity: .88; }
 .rail-top { position: relative; }
@@ -439,6 +445,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 <div id="shell" hidden>
 <header class="top gutter">
   <span class="head-line" id="headLine" hidden></span>
+  <span class="head-rule" id="headRule" hidden></span>
   <div class="brand">알코 노트 <small>ALKO NOTE</small> <span class="dev" id="devBadge" hidden>dev</span></div>
   <div class="nb-row">
     <nav class="tabs" id="tabs" role="tablist" aria-label="노트북"></nav>
