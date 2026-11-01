@@ -263,7 +263,7 @@ main .view-head { border-bottom: 0; background: linear-gradient(var(--line), var
 .item.on .item-title::before {
   content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--scope); margin: 0 8px 2px 0; vertical-align: middle;
 }
-.item-snip { font-size: var(--fs-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-snip { font-size: var(--fs-sm); line-height: 1.5; color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .item-snip:empty { display: none; }
 .item-meta { font-size: var(--fs-xs); color: var(--muted); }
 /* 휴대폰: 왼쪽으로 밀면 뒤에서 빨간 삭제 버튼이 나옴 */

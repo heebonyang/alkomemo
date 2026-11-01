@@ -63,10 +63,11 @@ function autoTitleFrom(body) {
   return t.length > 40 ? t.slice(0, 40).trim() + "…" : t;
 }
 const titleOf = (n) => (n.title || "").trim() || autoTitleFrom(n.body);
-// 목록 둘째 줄: 첫 줄이 제목으로 쓰였으면 그다음 줄
+// 목록 미리보기(두 줄까지): 첫 줄이 제목으로 쓰였으면 그다음 줄부터
 function snippetOf(n) {
   const lines = firstLines(n.body);
-  return lines[0] && autoTitleFrom(lines[0]) === titleOf(n) ? lines[1] || "" : lines[0] || "";
+  const from = lines[0] && autoTitleFrom(lines[0]) === titleOf(n) ? 1 : 0;
+  return lines.slice(from, from + 2).join("\n");
 }
 
 // 보여 줄 이름: 닉네임이 있으면 닉네임, 없으면 구글 이름
@@ -725,12 +726,9 @@ function renderRail() {
 
   pane.replaceChildren(...[entry].filter(Boolean), ...items.map((n) => {
     const on = !S.panel && S.open && S.open.scope === scope && S.open.id === n.id;
-    const snip = snippetOf(n);
-    const meta = (isSpace(scope) ? who(n.updatedBy) + " · " : "") + (n.updatedAt ? fmtStamp.format(n.updatedAt) : "");
     const parts = [
       el("span", { class: "item-title" + (titleOf(n) ? "" : " untitled"), text: titleOf(n) || "제목 없음" }),
-      el("span", { class: "item-snip", text: snip }),
-      el("span", { class: "item-meta", text: meta }),
+      el("span", { class: "item-snip", text: snippetOf(n) }),
     ];
     if (S.select) {
       const picked = S.select.has(n.id);
