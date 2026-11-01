@@ -1702,6 +1702,23 @@ $("#projBack").addEventListener("click", () => { $("#app").dataset.view = "list"
 $("#noteTitle").addEventListener("input", (e) => { S.autoTitle = !e.target.value.trim(); onEdit(); });
 $("#noteBody").addEventListener("input", (e) => { if (S.autoTitle) $("#noteTitle").value = autoTitleFrom(e.target.value); onEdit(); });
 $("#noteTitle").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#noteBody").focus(); } });
+// 데스크톱: ↑/↓ 로 목록의 위·아래 노트 열기. 글을 쓰는 중(제목·본문)에는 커서 이동이 우선이고, Esc 로 쓰기에서 빠져나오면 ↑/↓ 가 노트 이동
+["#noteTitle", "#noteBody"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) { flushSave(); e.target.blur(); } }));
+document.addEventListener("keydown", (e) => {
+  if ((e.key !== "ArrowDown" && e.key !== "ArrowUp") || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  if (!window.matchMedia("(min-width: 761px)").matches) return;
+  if (e.target.closest("textarea, select, [contenteditable], input:not(#search), .menu, [role=separator]")) return;
+  if (!S.tab || S.trashView || S.select || S.panel || document.querySelector(".menu:not([hidden])")) return;
+  const list = visibleNotes().filter((n) => !(S.draft && S.draft.id === n.id && !(S.open && S.open.id === n.id)));
+  if (!list.length) return;
+  e.preventDefault();
+  const cur = S.open && S.open.scope === S.tab ? list.findIndex((n) => n.id === S.open.id) : -1;
+  const next = cur < 0 ? 0 : Math.max(0, Math.min(list.length - 1, cur + (e.key === "ArrowDown" ? 1 : -1)));
+  if (next === cur) return;
+  openNote(S.tab, list[next].id);
+  const on = $("#list .item.on");
+  if (on) on.scrollIntoView({ block: "nearest" });
+});
 $("#backBtn").addEventListener("click", () => {
   flushSave();
   // 아무것도 안 쓴 새 노트에서 뒤로 가면 그 노트는 없던 것으로
