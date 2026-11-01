@@ -33,7 +33,7 @@ const S = {
   activity: [], activityIds: new Set(), knownMembers: {}, bellOpenedFrom: 0,
   trashView: false, swiped: null, swipeEnd: 0, purged: {},
   invites: [], spaceSubs: {},
-  open: null, dirty: false, writes: 0, chain: Promise.resolve(), saveTimer: null,
+  open: null, dirty: false, autoTitle: true, writes: 0, chain: Promise.resolve(), saveTimer: null,
   panel: null, editProject: null, tabChosen: false, q: "", unsubs: [],
   tabOrder: [], hidePrivate: false, drag: null, select: null, board: false,
 };
@@ -56,6 +56,19 @@ function errText(e, what) {
 }
 function setBanner(text) { const b = $("#banner"); b.textContent = text; b.hidden = !text; }
 function setStatus(text) { $("#status").textContent = text; }
+// 제목이 비어 있으면 본문 첫 줄을 제목으로 (앞의 # - * > 는 빼고 40자까지)
+const firstLines = (body) => (body || "").split("\n").map((l) => l.trim()).filter(Boolean);
+function autoTitleFrom(body) {
+  const t = (firstLines(body)[0] || "").replace(/^[#>*\-\s]+/, "").trim();
+  return t.length > 40 ? t.slice(0, 40).trim() + "…" : t;
+}
+const titleOf = (n) => (n.title || "").trim() || autoTitleFrom(n.body);
+// 목록 둘째 줄: 첫 줄이 제목으로 쓰였으면 그다음 줄
+function snippetOf(n) {
+  const lines = firstLines(n.body);
+  return lines[0] && autoTitleFrom(lines[0]) === titleOf(n) ? lines[1] || "" : lines[0] || "";
+}
+
 // 보여 줄 이름: 닉네임이 있으면 닉네임, 없으면 구글 이름
 const nameOf = (id) => (S.names[id] && (S.names[id].nick || S.names[id].name)) || "";
 const myLabel = () => S.myNick || S.myName;
@@ -710,10 +723,10 @@ function renderRail() {
 
   pane.replaceChildren(...[entry].filter(Boolean), ...items.map((n) => {
     const on = !S.panel && S.open && S.open.scope === scope && S.open.id === n.id;
-    const snip = (n.body || "").split("\n").find((l) => l.trim()) || "";
+    const snip = snippetOf(n);
     const meta = (isSpace(scope) ? who(n.updatedBy) + " · " : "") + (n.updatedAt ? fmtStamp.format(n.updatedAt) : "");
     const parts = [
-      el("span", { class: "item-title" + (n.title ? "" : " untitled"), text: n.title || "제목 없음" }),
+      el("span", { class: "item-title" + (titleOf(n) ? "" : " untitled"), text: titleOf(n) || "제목 없음" }),
       el("span", { class: "item-snip", text: snip }),
       el("span", { class: "item-meta", text: meta }),
     ];
@@ -759,7 +772,7 @@ function renderTrash() {
     purge.addEventListener("click", () => arm(purge, "한 번 더", () => purgeNotes(n.scope, [n.id])));
     const book = n.scope === "private" ? "노트" : spaceName(n.scope);
     return el("div", { class: "item trashed " + scopeClass(n.scope) },
-      el("span", { class: "item-title" + (n.title ? "" : " untitled"), text: n.title || "제목 없음" }),
+      el("span", { class: "item-title" + (titleOf(n) ? "" : " untitled"), text: titleOf(n) || "제목 없음" }),
       el("span", { class: "item-snip", text: (n.body || "").split("\n").find((l) => l.trim()) || "" }),
       el("span", { class: "item-meta" }, el("span", { class: "dot" }), ` ${book} · ` + (isSpace(n.scope) ? who(n.deletedBy) + " · " : "") + fmtStamp.format(n.deletedAt) + " 삭제"),
       el("span", { class: "trash-actions" },
@@ -1232,8 +1245,10 @@ function openNote(scope, id) {
   renderRail();
 }
 
+// 자동 제목: 제목을 직접 쓰기 전까지는 본문 첫 줄을 따라감. 제목을 직접 쓰면 멈추고, 지우면 다시 따라감
 function fillEditor(scope, n) {
-  $("#noteTitle").value = n.title || "";
+  S.autoTitle = n.autoTitle !== undefined ? !!n.autoTitle : !(n.title || "").trim();
+  $("#noteTitle").value = n.title || (S.autoTitle ? autoTitleFrom(n.body) : "");
   $("#noteBody").value = n.body || "";
   toggleNoteMenu(false);
   renderMeta(scope, n);
@@ -1248,7 +1263,9 @@ function renderMeta(scope, n) {
 
 function syncEditor(n) {
   const t = $("#noteTitle"), b = $("#noteBody");
-  if (t.value !== (n.title || "")) t.value = n.title || "";
+  if (n.autoTitle !== undefined) S.autoTitle = !!n.autoTitle;
+  const title = n.title || (S.autoTitle ? autoTitleFrom(n.body) : "");
+  if (t.value !== title) t.value = title;
   if (b.value !== (n.body || "")) b.value = n.body || "";
   renderMeta(S.open.scope, n);
 }
@@ -1258,6 +1275,14 @@ function closeEditor() {
   renderView();
   $("#app").dataset.view = "list";
   renderRail();
+}
+
+// 저장할 제목: 자동이면 본문 첫 줄 (제목 칸을 지우는 중이면 칸은 건드리지 않음)
+function currentTitle() {
+  const t = $("#noteTitle");
+  let title = t.value;
+  if (S.autoTitle && !title.trim()) { title = autoTitleFrom($("#noteBody").value); if (document.activeElement !== t) t.value = title; }
+  return { title, autoTitle: !!S.autoTitle };
 }
 
 function onEdit() {
@@ -1281,7 +1306,7 @@ function flushSave() {
   S.dirty = false;
   const { scope, id } = S.open;
   const ref = docIn(notesCol(scope), id);
-  const data = { title: $("#noteTitle").value, body: $("#noteBody").value, updatedAt: Date.now(), updatedBy: S.uid };
+  const data = { ...currentTitle(), body: $("#noteBody").value, updatedAt: Date.now(), updatedBy: S.uid };
   const draft = S.draft && S.draft.id === id ? S.draft : null;
   if (draft) {
     if (!data.title.trim() && !data.body.trim()) { setStatus(""); return S.chain; } // 아직 빈 노트: 저장 안 함
@@ -1513,7 +1538,7 @@ async function moveOpen(target) {
   const n = (S.notes[scope] || []).find((x) => x.id === id) || {};
   const now = Date.now();
   const data = {
-    title: $("#noteTitle").value, body: $("#noteBody").value,
+    ...currentTitle(), body: $("#noteBody").value,
     createdBy: n.createdBy || S.uid, createdAt: n.createdAt || now, updatedBy: S.uid, updatedAt: now,
   };
   clearTimeout(S.saveTimer);
@@ -1672,8 +1697,8 @@ $("#newMenu").addEventListener("keydown", (e) => { if (e.key === "Escape") { tog
 window.addEventListener("resize", placeNewMenu);
 $("#projAdd").addEventListener("click", () => editProject("new"));
 $("#projBack").addEventListener("click", () => { $("#app").dataset.view = "list"; });
-$("#noteTitle").addEventListener("input", onEdit);
-$("#noteBody").addEventListener("input", onEdit);
+$("#noteTitle").addEventListener("input", (e) => { S.autoTitle = !e.target.value.trim(); onEdit(); });
+$("#noteBody").addEventListener("input", (e) => { if (S.autoTitle) $("#noteTitle").value = autoTitleFrom(e.target.value); onEdit(); });
 $("#noteTitle").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#noteBody").focus(); } });
 $("#backBtn").addEventListener("click", () => {
   flushSave();

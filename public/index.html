@@ -207,6 +207,7 @@ main .view-head { border-bottom: 0; background: linear-gradient(var(--line), var
 /* 새 노트 + : 데스크톱은 오른쪽 노트 칸 윗줄(⋯ 옆), 휴대폰은 목록 화면에 노트 칸이 안 보이므로 목록 위에 그대로 */
 @media (min-width: 761px) { .list-bar #newBtn { display: none; } }
 @media (max-width: 760px) { .head-new { display: none; } }
+.view-title:empty { display: none; }
 .nn { display: flex; flex-direction: column; gap: 12px; padding: 10px; }
 .check-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); cursor: pointer; }
 .check-row input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex: none; }
@@ -523,7 +524,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 
     <section class="view" id="emptyView">
       <div class="view-head gutter">
-        <div class="col head-row"><h2 class="view-title" id="emptyTitle"></h2><span class="grow"></span><button class="new-note head-new" id="newBtnEmpty" aria-label="새 노트" title="새 노트"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button></div>
+        <div class="col head-row"><h2 class="view-title" id="emptyTitle"></h2><button class="new-note head-new" id="newBtnEmpty" aria-label="새 노트" title="새 노트"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button></div>
       </div>
       <div class="view-body gutter">
         <div class="col"><p class="hint" id="emptyText">목록에서 노트를 열거나 + 로 새 노트를 만드세요.</p></div>
@@ -534,9 +535,9 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
       <div class="view-head gutter">
         <div class="col head-row">
           <button class="icon-btn back" id="backBtn" aria-label="목록으로"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg></button>
+          <button class="new-note head-new" id="newBtnEditor" aria-label="새 노트" title="새 노트"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
           <span class="grow"></span>
           <span class="status" id="status"></span>
-          <button class="new-note head-new" id="newBtnEditor" aria-label="새 노트" title="새 노트"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
           <button class="icon-btn more-btn" id="moreBtn" aria-label="더보기" title="더보기" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4.5" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="15.5" cy="10" r="1.5"/></svg></button>
         </div>
       </div>
