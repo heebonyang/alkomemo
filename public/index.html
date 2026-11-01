@@ -254,6 +254,7 @@ main .view-head { border-bottom: 0; background: linear-gradient(var(--line), var
 .search:focus-visible { outline: none; }
 .search::-webkit-search-cancel-button { display: none; }
 .list { flex: 1; overflow-y: auto; padding-bottom: 24px; display: flex; flex-direction: column; }
+.list > * { flex-shrink: 0; } /* 노트가 많아도 줄 높이를 줄이지 않고 목록이 스크롤되게 */
 .item { text-align: left; padding: 14px 0; display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--line); }
 .item:first-child { border-top: 0; }
 .item-title { font-size: var(--fs-md); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
