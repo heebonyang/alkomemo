@@ -33,7 +33,7 @@ const S = {
   activity: [], activityIds: new Set(), knownMembers: {}, bellOpenedFrom: 0,
   trashView: false, swiped: null, swipeEnd: 0, purged: {},
   invites: [], spaceSubs: {},
-  open: null, dirty: false, autoTitle: true, writes: 0, chain: Promise.resolve(), saveTimer: null,
+  open: null, dirty: false, autoTitle: true, composing: false, restore: null, restoreReady: false, writes: 0, chain: Promise.resolve(), saveTimer: null,
   panel: null, editProject: null, tabChosen: false, q: "", unsubs: [],
   tabOrder: [], hidePrivate: false, drag: null, select: null, board: false,
 };
@@ -222,7 +222,7 @@ function teardown() {
   Object.assign(S, {
     unsubs: [], spaceSubs: {}, uid: null, email: null, names: {}, spaces: [], spacesLoaded: false, tab: null, nextTab: null,
     notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "", notices: {}, seen: {}, seenLoaded: false, draft: null, activity: [], activityIds: new Set(), knownMembers: {}, invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
-    panel: null, editProject: null, migrated: false, tabChosen: false, tabOrder: [], hidePrivate: false, drag: null,
+    panel: null, editProject: null, migrated: false, tabChosen: false, tabOrder: [], hidePrivate: false, drag: null, restore: null, restoreReady: false, composing: false,
   });
 }
 
@@ -231,6 +231,7 @@ function start(u) {
   S.email = (u.email || "").toLowerCase() || null;
   S.myName = u.displayName || u.email || "나";
   S.myNick = "";
+  try { S.restore = JSON.parse(localStorage.getItem(`alko.last.${u.uid}`)); } catch { S.restore = null; }
   $("#gate").hidden = true;
   $("#shell").hidden = false;
   requestAnimationFrame(syncHeaderEdge);
@@ -333,7 +334,14 @@ function onSpaces(list) {
       }, () => {}),
     ];
   }
-  if (!S.spacesLoaded) { S.spacesLoaded = true; migrateLegacy(); }
+  if (!S.spacesLoaded) {
+    S.spacesLoaded = true; migrateLegacy();
+    // 처음 불러왔을 때: 지난번에 보던 노트북이 아직 있으면 그걸로
+    const r = S.restore;
+    if (r && !S.tabChosen && (r.tab === "private" ? orderedTabs().some((t) => t.id === "private") : ids.has(r.tab))) { S.tab = r.tab; S.tabChosen = true; }
+    else S.restore = null;
+    S.restoreReady = true;
+  }
   if (S.nextTab && ids.has(S.nextTab)) { S.tab = S.nextTab; S.nextTab = null; }
   // 사용자가 직접 탭을 고르기 전이면 첫 공유 노트를 보여 줌
   const autoPick = !S.tabChosen && S.tab === "private" && !S.open && list.length;
@@ -342,10 +350,25 @@ function onSpaces(list) {
   if (!S.tab || autoPick || privateGone || (isSpace(S.tab) && !ids.has(S.tab))) S.tab = S.tabChosen ? (list.length ? list[0].id : firstTab()) : firstTab();
   renderAll();
   if (S.panel && S.panel !== "new") renderPanelLists();
+  reopenLast();
 }
 
 // 휴지통: 지운 노트는 deletedAt 을 달아 두고 목록에서만 뺌. 30일이 지나면 완전히 지움
 const TRASH_DAYS = 30;
+// 새로고침해도 보던 노트북(과 열어 둔 노트)을 그대로: 이 브라우저에 사람별로 기억
+const lastKey = () => `alko.last.${S.uid}`;
+function saveLast() {
+  if (!S.restoreReady || !S.uid || !S.tab) return;
+  const note = S.open && S.open.scope === S.tab && !(S.draft && S.draft.id === S.open.id) ? S.open.id : null;
+  try { localStorage.setItem(lastKey(), JSON.stringify({ tab: S.tab, note })); } catch {}
+}
+function reopenLast() {
+  const r = S.restore;
+  if (!r || !r.note || r.tab !== S.tab || !S.loaded[r.tab] || S.open) return;
+  S.restore = null;
+  if ((S.notes[r.tab] || []).some((n) => n.id === r.note)) openNote(r.tab, r.note);
+}
+
 function onNotes(scope, list, snap) {
   if (S.draft && S.draft.scope === scope && !list.some((n) => n.id === S.draft.id)) list = [S.draft.note, ...list];
   S.notes[scope] = list.filter((n) => !n.deletedAt);
@@ -359,9 +382,10 @@ function onNotes(scope, list, snap) {
   if (S.open && S.open.scope === scope) {
     const n = list.find((x) => x.id === S.open.id);
     if (!n && !snap.metadata.fromCache && !S.writes) closeEditor();
-    else if (n && !S.dirty && !S.writes) syncEditor(n);
+    else if (n && !S.dirty && !S.writes && !S.composing) syncEditor(n);
   }
   if (S.tab === scope || S.trashView) renderRail();
+  reopenLast();
 }
 
 // 아주 초기 버전(공유 노트가 하나뿐이던 때)의 데이터를 "공유 노트북"으로 옮김.
@@ -669,6 +693,7 @@ const scopeKind = (scope) => {
 const scopeClass = (scope) => "scope-" + scopeKind(scope);
 
 function renderView() {
+  saveLast();
   $("#app").dataset.scope = scopeKind(S.tab);
   const panel = !!S.panel;
   const hasOpen = !panel && S.open && S.open.scope === S.tab;
@@ -1699,9 +1724,15 @@ $("#projAdd").addEventListener("click", () => editProject("new"));
 $("#projBack").addEventListener("click", () => { $("#app").dataset.view = "list"; });
 $("#noteTitle").addEventListener("input", (e) => { S.autoTitle = !e.target.value.trim(); onEdit(); });
 $("#noteBody").addEventListener("input", (e) => { if (S.autoTitle) $("#noteTitle").value = autoTitleFrom(e.target.value); onEdit(); });
-$("#noteTitle").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#noteBody").focus(); } });
+// 한글은 마지막 글자를 '조합 중'인 상태가 있음. 그때 누른 Enter·Esc 는 글자를 확정하는 키라서 가로채면 마지막 글자가 사라짐
+const composing = (e) => e.isComposing || e.keyCode === 229;
+$("#noteTitle").addEventListener("keydown", (e) => { if (e.key === "Enter" && !composing(e)) { e.preventDefault(); $("#noteBody").focus(); } });
+["#noteTitle", "#noteBody"].forEach((id) => {
+  $(id).addEventListener("compositionstart", () => { S.composing = true; });
+  $(id).addEventListener("compositionend", () => { S.composing = false; onEdit(); }); // 확정된 글자도 저장되게
+});
 // 데스크톱: ↑/↓ 로 목록의 위·아래 노트 열기. 글을 쓰는 중(제목·본문)에는 커서 이동이 우선이고, Esc 로 쓰기에서 빠져나오면 ↑/↓ 가 노트 이동
-["#noteTitle", "#noteBody"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) { flushSave(); e.target.blur(); } }));
+["#noteTitle", "#noteBody"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && !composing(e)) { flushSave(); e.target.blur(); } }));
 document.addEventListener("keydown", (e) => {
   if ((e.key !== "ArrowDown" && e.key !== "ArrowUp") || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
   if (!window.matchMedia("(min-width: 761px)").matches) return;
