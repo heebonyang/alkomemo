@@ -703,7 +703,7 @@ function renderRail() {
     return;
   }
   const scope = S.tab;
-  if (!S.loaded[scope]) { pane.replaceChildren(el("div", { class: "hint", text: "불러오는 중…" })); return; }
+  if (!S.loaded[scope]) { $("#noteCount").textContent = ""; pane.replaceChildren(el("div", { class: "hint", text: "불러오는 중…" })); return; }
   $("#listTools").hidden = S.trashView || !!S.select;
   $("#trashBar").hidden = !S.trashView;
   if (S.trashView) { renderTrash(); return; }
@@ -713,6 +713,8 @@ function renderRail() {
   const items = q ? all.filter((n) => ((n.title || "") + "\n" + (n.body || "")).toLowerCase().includes(q)) : all;
   const entry = isSpace(scope) && !q && !S.select ? projectEntry() : null;
   $("#selectBtn").hidden = !all.length;
+  const count = all.filter((n) => !(S.draft && S.draft.id === n.id)).length; // 아직 저장 안 된 새 노트는 빼고
+  $("#noteCount").textContent = count ? `노트 ${count}개` : "";
   if (S.select) renderSelectBar(items);
 
   if (!all.length) {

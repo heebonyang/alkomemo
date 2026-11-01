@@ -227,6 +227,9 @@ main .view-head { border-bottom: 0; background: linear-gradient(var(--line), var
 .list-bar .search-box { margin-left: 4px; }
 .list-bar .search-box:not([hidden]) ~ .grow { display: none; }
 .list-bar #selectBtn { order: 2; margin-right: -9px; }
+/* 이 노트북의 노트 개수 (휴지통 제외) */
+.list-bar .note-count { order: 1; font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; margin-right: 6px; }
+.list-bar .note-count:empty, .list-bar .search-box:not([hidden]) ~ .note-count { display: none; }
 .sel-bar { display: flex; align-items: center; gap: 16px; width: 100%; }
 .sel-all span { font-weight: 600; }
 .sel-all input { accent-color: var(--scope); }
@@ -482,6 +485,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
         <button class="icon-btn" id="searchClose" aria-label="검색 닫기"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8"/></svg></button>
       </div>
       <span class="grow"></span>
+      <span class="note-count" id="noteCount"></span>
         <button class="icon-btn" id="selectBtn" aria-label="노트 선택해서 지우기" title="선택"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="5" height="5" rx="1"/><path d="M11.5 6h5M11.5 14h5"/><rect x="3.5" y="11.5" width="5" height="5" rx="1"/><path d="M4.8 14l1.2 1.2 2-2.4"/></svg></button>
         <button class="icon-btn" id="searchBtn" aria-label="검색" title="검색 (⌘K)"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M12.7 12.7 17 17"/></svg></button>
         <button class="new-note" id="newBtn" aria-label="새 노트" title="새 노트"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
