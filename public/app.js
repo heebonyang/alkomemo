@@ -663,6 +663,7 @@ function renderView() {
   const board = isSpace(S.tab) && S.board;
   $("#projView").hidden = panel || hasOpen || !board;
   $("#emptyView").hidden = panel || hasOpen || board;
+  $("#newBtnEmpty").hidden = S.trashView || !S.tab; // 휴지통 화면 · 노트북이 없을 때는 새 노트 없음
   $("#emptyText").textContent = S.trashView ? "지운 노트는 휴지통에서 되살리거나 완전히 지울 수 있어요." : !S.tab ? "" : "목록에서 노트를 열거나 + 로 새 노트를 만드세요.";
 
 }
@@ -1664,7 +1665,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.select
 $("#searchClose").addEventListener("click", closeSearch);
 $("#search").addEventListener("keydown", (e) => { if (e.key === "Escape") closeSearch(); });
 $("#spaceClose").addEventListener("click", closePanel);
-$("#newBtn").addEventListener("click", () => S.tab && createNote(S.tab));
+["#newBtn", "#newBtnEmpty", "#newBtnEditor"].forEach((id) => $(id).addEventListener("click", () => S.tab && createNote(S.tab)));
 document.addEventListener("click", (e) => { if (!$("#newMenu").hidden && !e.target.closest("#newMenu")) toggleNewMenu(false); });
 $("#newMenu").addEventListener("keydown", (e) => { if (e.key === "Escape") { toggleNewMenu(false); $("#tabAdd") && $("#tabAdd").focus(); } });
 // 휴대폰은 키보드가 올라오고 내려갈 때도 resize 가 오므로 닫지 않고 자리만 다시 잡음
