@@ -1719,6 +1719,19 @@ document.addEventListener("keydown", (e) => {
   const on = $("#list .item.on");
   if (on) on.scrollIntoView({ block: "nearest" });
 });
+// 데스크톱: ←/→ 로 왼쪽·오른쪽 노트북으로 (끝에서는 멈춤). 같은 조건: 글 쓰는 중·메뉴가 열려 있으면 안 함
+document.addEventListener("keydown", (e) => {
+  if ((e.key !== "ArrowLeft" && e.key !== "ArrowRight") || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  if (!window.matchMedia("(min-width: 761px)").matches) return;
+  if (e.target.closest("textarea, select, [contenteditable], input, .menu, [role=separator]")) return;
+  if (!S.tab || S.select || document.querySelector(".menu:not([hidden])")) return;
+  const tabs = orderedTabs();
+  const i = tabs.findIndex((t) => t.id === S.tab);
+  const j = i + (e.key === "ArrowRight" ? 1 : -1);
+  if (i < 0 || j < 0 || j >= tabs.length) return;
+  e.preventDefault();
+  switchTab(tabs[j].id);
+});
 $("#backBtn").addEventListener("click", () => {
   flushSave();
   // 아무것도 안 쓴 새 노트에서 뒤로 가면 그 노트는 없던 것으로
