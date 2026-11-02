@@ -942,12 +942,11 @@ function closeSearch() {
 // 목록 맨 위의 프로젝트 카드: 진행 중 개수 + 가까운 마감 두 개
 function projectEntry() {
   const active = activeProjects(S.tab);
-  const soon = active.filter((p) => p.deadline).slice(0, 2);
   const on = S.board && !S.panel && !(S.open && S.open.scope === S.tab);
+  // 진행 중인 프로젝트는 개수 제한 없이 모두 (마감 가까운 순, 마감 없는 건 뒤에 '—')
   const preview = !S.loaded["p:" + S.tab] ? [el("span", { text: "불러오는 중…" })]
     : !active.length ? [el("span", { text: "눌러서 프로젝트를 추가해 보세요" })]
-    : soon.length ? soon.map((p) => { const d = dday(p.deadline); return el("span", { class: "pc-item" }, el("b", { class: "dday " + d.cls, text: d.text }), " ", p.title); })
-    : [el("span", { text: "마감일이 정해진 프로젝트가 없어요" })];
+    : active.map((p) => { const d = dday(p.deadline); return el("span", { class: "pc-item" }, el("b", { class: "dday " + d.cls, text: d.text }), " ", p.title); });
   return el("button", { class: "proj-card" + (on ? " on" : ""), "aria-pressed": String(on), onclick: openProjects },
     el("span", { class: "pc-head" },
       svg('<rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M7 8h6M7 11.5h4"/>'),
