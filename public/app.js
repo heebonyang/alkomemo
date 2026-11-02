@@ -734,13 +734,15 @@ function renderRail() {
   $("#trashBar").hidden = !S.trashView;
   if (S.trashView) { renderTrash(); return; }
   dropDraft();
-  const all = S.notes[scope] || [];
+  const all = sortNotes(S.notes[scope] || []);
   const q = S.q.trim().toLowerCase();
   const items = q ? all.filter((n) => ((n.title || "") + "\n" + (n.body || "")).toLowerCase().includes(q)) : all;
   const entry = isSpace(scope) && !q && !S.select ? projectEntry() : null;
   $("#selectBtn").hidden = !all.length;
   const count = all.filter((n) => !(S.draft && S.draft.id === n.id)).length; // 아직 저장 안 된 새 노트는 빼고
   $("#noteCount").textContent = count ? `노트 ${count}개` : "";
+  $("#sortBtn").hidden = count < 2; // 두 개 이상일 때만 정렬이 의미 있음
+  $("#sortBtn").title = `정렬: ${SORTS[S.sort]}`;
   if (S.select) renderSelectBar(items);
 
   if (!all.length) {
@@ -850,10 +852,37 @@ function swipeable(row, item, id) {
   if (S.swiped === id) item.style.transform = `translateX(${-SWIPE_W}px)`;
 }
 
+/* ---------- 노트 정렬: 최근 수정순 / 만든 날짜순 (이 브라우저에 기억) ---------- */
+const SORTS = { updated: "최근 수정순", created: "만든 날짜순" };
+S.sort = (() => { try { return SORTS[localStorage.getItem("alko.sort")] ? localStorage.getItem("alko.sort") : "updated"; } catch { return "updated"; } })();
+function sortNotes(list) {
+  const key = S.sort === "created" ? "createdAt" : "updatedAt";
+  return [...list].sort((a, b) => (b[key] || 0) - (a[key] || 0));
+}
+function toggleSortMenu(force) {
+  const menu = $("#sortMenu"), btn = $("#sortBtn");
+  const open = force !== undefined ? force : menu.hidden;
+  menu.hidden = !open; btn.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  const count = (S.notes[S.tab] || []).filter((n) => !(S.draft && S.draft.id === n.id)).length;
+  menu.replaceChildren(
+    el("div", { class: "menu-label", text: `노트 ${count}개 · 정렬` }),
+    ...Object.entries(SORTS).map(([k, label]) => el("button", { type: "button", class: "menu-item", role: "menuitemradio", "aria-checked": String(S.sort === k),
+      onclick: () => { S.sort = k; try { localStorage.setItem("alko.sort", k); } catch {} toggleSortMenu(false); renderRail(); } },
+      el("span", { text: label }), S.sort === k ? svg('<path d="M4.5 10.5 8 14l7.5-8"/>', "2") : null)));
+  const r = btn.getBoundingClientRect();
+  menu.style.top = r.bottom + 6 + "px";
+  menu.style.left = Math.max(16, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16)) + "px";
+}
+$("#sortBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleSortMenu(); });
+document.addEventListener("click", (e) => { if (!$("#sortMenu").hidden && !e.target.closest("#sortMenu")) toggleSortMenu(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#sortMenu").hidden) { toggleSortMenu(false); $("#sortBtn").focus(); } });
+window.addEventListener("resize", () => toggleSortMenu(false));
+
 /* ---------- 노트 골라서 지우기 ---------- */
 const visibleNotes = () => {
   const q = S.q.trim().toLowerCase();
-  const all = S.notes[S.tab] || [];
+  const all = sortNotes(S.notes[S.tab] || []);
   return q ? all.filter((n) => ((n.title || "") + "\n" + (n.body || "")).toLowerCase().includes(q)) : all;
 };
 function startSelect() {
