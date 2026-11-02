@@ -1680,15 +1680,14 @@ function projDeleteBtn(p) {
 }
 
 function projectForm(p) {
-  const del = p && el("button", { type: "button", class: "link danger", text: "삭제" });
-  if (del) del.addEventListener("click", () => arm(del, "한 번 더 누르면 삭제", () => removeProject(p)));
+  // 삭제는 목록의 휴지통 아이콘으로 (수정 창에는 두지 않음)
   const form = el("form", { class: "proj-form" },
     el("input", { type: "text", id: "pjTitle", placeholder: "프로젝트 이름", "aria-label": "프로젝트 이름", required: true, autocomplete: "off", value: p ? p.title : "" }),
     el("div", { class: "pf-row" },
       el("label", { for: "pjDeadline", class: "pf-label", text: "마감일" }),
       el("input", { type: "date", id: "pjDeadline", value: p ? p.deadline || "" : "" })),
     el("div", { class: "pf-actions" },
-      del, el("span", { class: "spacer" }),
+      el("span", { class: "spacer" }),
       el("button", { type: "button", class: "link", text: "취소", onclick: closeProjectForm }),
       el("button", { type: "submit", class: "btn-ink", text: p ? "저장" : "추가" })));
   form.addEventListener("submit", (e) => { e.preventDefault(); saveProject(p); });
