@@ -59,7 +59,7 @@ function setStatus(text) { $("#status").textContent = text; }
 // 제목이 비어 있으면 본문 첫 줄을 제목으로 (앞의 # - * > 는 빼고 40자까지)
 const firstLines = (body) => (body || "").split("\n").map((l) => l.trim()).filter(Boolean);
 function autoTitleFrom(body) {
-  const t = (firstLines(body)[0] || "").replace(/^[#>*\-\s]+/, "").trim();
+  const t = (firstLines(body)[0] || "").replace(/^[#>*•\-\s]+/, "").trim();
   return t.length > 40 ? t.slice(0, 40).trim() + "…" : t;
 }
 const titleOf = (n) => (n.title || "").trim() || autoTitleFrom(n.body);
@@ -1750,7 +1750,49 @@ window.addEventListener("resize", placeNewMenu);
 $("#projAdd").addEventListener("click", () => editProject("new"));
 $("#projBack").addEventListener("click", () => { $("#app").dataset.view = "list"; });
 $("#noteTitle").addEventListener("input", (e) => { S.autoTitle = !e.target.value.trim(); onEdit(); });
-$("#noteBody").addEventListener("input", (e) => { if (S.autoTitle) $("#noteTitle").value = autoTitleFrom(e.target.value); onEdit(); });
+$("#noteBody").addEventListener("input", (e) => { autoBullet(e); if (S.autoTitle) $("#noteTitle").value = autoTitleFrom(e.target.value); onEdit(); });
+$("#noteBody").addEventListener("keydown", continueBullet);
+
+// 글머리 기호: 줄 맨 앞에 "- " 또는 "* " 를 치면 "• " 로 바꿈
+const BULLET = "• ";
+function lineStart(ta) { return ta.value.lastIndexOf("\n", ta.selectionStart - 1) + 1; }
+// 되돌리기(Ctrl+Z)가 되도록 브라우저 입력으로 바꿔 넣음 (안 되는 브라우저는 직접 바꿈)
+function replaceText(ta, from, to, text) {
+  ta.setSelectionRange(from, to);
+  if (!document.execCommand || !document.execCommand("insertText", false, text)) {
+    ta.setRangeText(text, from, to, "end");
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  ta.setSelectionRange(from + text.length, from + text.length); // 크롬은 지운 뒤 커서를 윗줄 끝에 두기도 해서 직접 맞춤
+}
+function autoBullet(e) {
+  const ta = e.target;
+  // 휴대폰 키보드는 Enter 키 대신 '줄바꿈이 들어갔다'만 알려 주기도 해서, 그때도 글머리를 이어 줌
+  if ((e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") && ta.selectionStart === ta.selectionEnd) {
+    const caret = ta.selectionStart, prevStart = ta.value.lastIndexOf("\n", caret - 2) + 1;
+    const prev = ta.value.slice(prevStart, caret - 1);
+    if (!prev.startsWith(BULLET)) return;
+    if (!prev.slice(BULLET.length).trim()) replaceText(ta, prevStart, caret, "");
+    else replaceText(ta, caret, caret, BULLET);
+    return;
+  }
+  if (e.inputType !== "insertText" || e.data !== " " || e.isComposing) return;
+  const start = lineStart(ta), head = ta.value.slice(start, ta.selectionStart);
+  if (head === "- " || head === "* ") replaceText(ta, start, ta.selectionStart, BULLET);
+}
+// 글머리 줄에서 Enter: 다음 줄도 "• " 로 시작. 내용 없는 글머리 줄에서 Enter 면 목록을 끝냄(기호만 지움)
+function continueBullet(e) {
+  if (e.key !== "Enter" || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey || composing(e)) return;
+  const ta = e.target;
+  if (ta.selectionStart !== ta.selectionEnd) return;
+  const start = lineStart(ta);
+  const end = ta.value.indexOf("\n", start) < 0 ? ta.value.length : ta.value.indexOf("\n", start);
+  const line = ta.value.slice(start, end);
+  if (!line.startsWith(BULLET)) return;
+  e.preventDefault();
+  if (!line.slice(BULLET.length).trim()) replaceText(ta, start, end, "");
+  else replaceText(ta, ta.selectionStart, ta.selectionStart, "\n" + BULLET);
+}
 // 한글은 마지막 글자를 '조합 중'인 상태가 있음. 그때 누른 Enter·Esc 는 글자를 확정하는 키라서 가로채면 마지막 글자가 사라짐
 const composing = (e) => e.isComposing || e.keyCode === 229;
 $("#noteTitle").addEventListener("keydown", (e) => { if (e.key === "Enter" && !composing(e)) { e.preventDefault(); $("#noteBody").focus(); } });
