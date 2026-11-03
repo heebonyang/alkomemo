@@ -29,7 +29,7 @@ const S = {
   tab: null, uid: null, email: null, myName: "", names: {},
   spaces: [], spacesLoaded: false, nextTab: null, migrated: false,
   notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "",
-  notices: {}, seen: {}, seenLoaded: false, draft: null,
+  notices: {}, seen: {}, seenLoaded: false, draft: null, retries: {}, loadFailed: {},
   activity: [], activityIds: new Set(), knownMembers: {}, bellOpenedFrom: 0,
   trashView: false, swiped: null, swipeEnd: 0, purged: {},
   invites: [], spaceSubs: {},
@@ -221,7 +221,7 @@ function teardown() {
   Object.values(S.spaceSubs).forEach((list) => list.forEach((u) => u()));
   Object.assign(S, {
     unsubs: [], spaceSubs: {}, uid: null, email: null, names: {}, spaces: [], spacesLoaded: false, tab: null, nextTab: null,
-    notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "", notices: {}, seen: {}, seenLoaded: false, draft: null, activity: [], activityIds: new Set(), knownMembers: {}, invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
+    notes: {}, trash: {}, projects: {}, pending: {}, loaded: {}, memberInfo: {}, myNick: "", notices: {}, seen: {}, seenLoaded: false, draft: null, retries: {}, loadFailed: {}, activity: [], activityIds: new Set(), knownMembers: {}, invites: [], open: null, dirty: false, trashView: false, swiped: null, purged: {},
     panel: null, editProject: null, migrated: false, tabChosen: false, tabOrder: [], hidePrivate: false, drag: null, restore: null, restoreReady: false, composing: false,
   });
 }
@@ -285,6 +285,25 @@ function start(u) {
   renderAll();
 }
 
+// 노트북을 불러오다 거절되면(초대를 막 수락해서 서버가 아직 멤버로 알기 전 등) 잠시 뒤 다시 구독.
+// 몇 번 해도 안 되면 '불러오는 중…'에 멈춰 있지 않고 다시 시도 버튼을 보여 줌
+function spaceLoadFailed(sid) {
+  return (e) => {
+    if (!S.spaceSubs[sid]) return;
+    S.spaceSubs[sid].forEach((u) => u());
+    delete S.spaceSubs[sid];
+    S.retries[sid] = (S.retries[sid] || 0) + 1;
+    if (S.retries[sid] <= 4) { setTimeout(() => { if (S.uid && S.spaces.some((sp) => sp.id === sid)) onSpaces(S.spaces); }, 700 * S.retries[sid]); return; }
+    S.loadFailed[sid] = e && e.code ? e.code : "unknown";
+    if (S.tab === sid) renderRail();
+  };
+}
+function retrySpace(sid) {
+  S.retries[sid] = 0; S.loadFailed[sid] = false;
+  if (S.spaceSubs[sid]) { S.spaceSubs[sid].forEach((u) => u()); delete S.spaceSubs[sid]; }
+  renderRail(); onSpaces(S.spaces);
+}
+
 // 내가 속한 노트북 목록이 바뀌면 노트북마다 노트·프로젝트·초대·알림·멤버 구독을 맞춤
 function onSpaces(list) {
   S.spaces = list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -315,9 +334,10 @@ function onSpaces(list) {
     // 방금 만든 공유 노트는 서버가 확인한 뒤에 구독 (먼저 구독하면 권한 없음으로 끊김)
     if (S.spaceSubs[sid] || list.find((s) => s.id === sid).pendingServer) continue;
     S.notes[sid] = []; S.projects[sid] = []; S.pending[sid] = [];
+    const fail = spaceLoadFailed(sid);
     S.spaceSubs[sid] = [
-      watch(notesCol(sid), { byUpdated: true }, (s) => onNotes(sid, docs(s), s), onErr),
-      watch(projectsCol(sid), {}, (s) => { S.projects[sid] = docs(s); S.loaded["p:" + sid] = true; if (S.tab === sid) { renderProjects(); renderRail(); } }, onErr),
+      watch(notesCol(sid), { byUpdated: true }, (s) => { S.retries[sid] = 0; S.loadFailed[sid] = false; onNotes(sid, docs(s), s); }, fail),
+      watch(projectsCol(sid), {}, (s) => { S.projects[sid] = docs(s); S.loaded["p:" + sid] = true; if (S.tab === sid) { renderProjects(); renderRail(); } }, fail),
       watch(collection("invites"), { where: ["spaceId", "==", sid] }, (s) => {
         S.pending[sid] = docs(s);
         renderTabs(); if (S.tab === sid) { renderView(); renderRail(); } // 초대가 생기거나 없어지면 색이 바뀜
@@ -729,7 +749,14 @@ function renderRail() {
     return;
   }
   const scope = S.tab;
-  if (!S.loaded[scope]) { $("#noteCount").textContent = ""; pane.replaceChildren(el("div", { class: "hint", text: "불러오는 중…" })); return; }
+  if (!S.loaded[scope]) {
+    $("#noteCount").textContent = "";
+    pane.replaceChildren(...(S.loadFailed[scope]
+      ? [el("div", { class: "hint", text: `이 노트북을 불러오지 못했어요. (${S.loadFailed[scope]})` }),
+         el("button", { class: "btn", text: "다시 시도", onclick: () => retrySpace(scope) })]
+      : [el("div", { class: "hint", text: "불러오는 중…" })]));
+    return;
+  }
   $("#listTools").hidden = S.trashView || !!S.select;
   $("#trashBar").hidden = !S.trashView;
   if (S.trashView) { renderTrash(); return; }
