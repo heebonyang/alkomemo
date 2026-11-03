@@ -1303,6 +1303,7 @@ function fillEditor(scope, n) {
   S.autoTitle = n.autoTitle !== undefined ? !!n.autoTitle : !(n.title || "").trim();
   $("#noteTitle").value = n.title || (S.autoTitle ? autoTitleFrom(n.body) : "");
   $("#noteBody").value = n.body || "";
+  setBodyMode(false);
   toggleNoteMenu(false);
   renderMeta(scope, n);
 }
@@ -1319,7 +1320,7 @@ function syncEditor(n) {
   if (n.autoTitle !== undefined) S.autoTitle = !!n.autoTitle;
   const title = n.title || (S.autoTitle ? autoTitleFrom(n.body) : "");
   if (t.value !== title) t.value = title;
-  if (b.value !== (n.body || "")) b.value = n.body || "";
+  if (b.value !== (n.body || "")) { b.value = n.body || ""; if (document.activeElement !== b) setBodyMode(false); }
   renderMeta(S.open.scope, n);
 }
 
@@ -1752,6 +1753,66 @@ $("#projBack").addEventListener("click", () => { $("#app").dataset.view = "list"
 $("#noteTitle").addEventListener("input", (e) => { S.autoTitle = !e.target.value.trim(); onEdit(); });
 $("#noteBody").addEventListener("input", (e) => { autoBullet(e); if (S.autoTitle) $("#noteTitle").value = autoTitleFrom(e.target.value); onEdit(); });
 $("#noteBody").addEventListener("keydown", continueBullet);
+$("#noteBody").addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== $("#noteBody")) setBodyMode(false); }, 0));
+
+/* ---------- 본문 속 인터넷 링크 ---------- */
+const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/gi;
+const TRAIL_RE = /[.,;:!?…。、)\]}'"]+$/;
+function findLinks(text) {
+  const out = [];
+  for (const m of text.matchAll(URL_RE)) {
+    const url = m[0].replace(TRAIL_RE, "");
+    if (url.length > 4) out.push({ start: m.index, end: m.index + url.length, url });
+  }
+  return out;
+}
+// 읽기 화면 그리기: 글자는 그대로, 링크만 <a>
+function renderNoteView(text) {
+  const kids = []; let at = 0;
+  for (const l of findLinks(text)) {
+    if (l.start > at) kids.push(document.createTextNode(text.slice(at, l.start)));
+    const href = /^https?:/i.test(l.url) ? l.url : "https://" + l.url;
+    kids.push(el("a", { href, target: "_blank", rel: "noopener noreferrer", text: l.url }));
+    at = l.end;
+  }
+  kids.push(document.createTextNode(text.slice(at) + "\n")); // 마지막 빈 줄도 높이가 같게
+  $("#noteView").replaceChildren(...kids);
+}
+// edit=true: 쓰기(textarea), false: 링크가 있으면 읽기 화면, 없으면 그대로 쓰기 칸
+function setBodyMode(edit, caret) {
+  const ta = $("#noteBody"), view = $("#noteView");
+  const useView = !edit && findLinks(ta.value).length > 0 && document.activeElement !== ta;
+  if (useView) {
+    renderNoteView(ta.value);
+    const top = ta.scrollTop;
+    ta.hidden = true; view.hidden = false; view.scrollTop = top;
+  } else if (!view.hidden) {
+    const top = view.scrollTop;
+    view.hidden = true; ta.hidden = false; ta.scrollTop = top;
+    if (edit) { ta.focus({ preventScroll: true }); if (caret != null) ta.setSelectionRange(caret, caret); ta.scrollTop = top; }
+  }
+}
+// 읽기 화면에서 링크가 아닌 곳을 누르면, 누른 글자 위치에 커서를 두고 바로 편집
+function viewOffsetAt(x, y) {
+  const view = $("#noteView");
+  const r = document.caretRangeFromPoint ? document.caretRangeFromPoint(x, y)
+    : document.caretPositionFromPoint ? (() => { const p = document.caretPositionFromPoint(x, y); return p && { startContainer: p.offsetNode, startOffset: p.offset }; })() : null;
+  if (!r || !view.contains(r.startContainer)) return null;
+  let off = 0;
+  const walk = document.createTreeWalker(view, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    if (n === r.startContainer) return Math.min(off + r.startOffset, $("#noteBody").value.length);
+    off += n.data.length;
+  }
+  return null;
+}
+$("#noteView").addEventListener("click", (e) => {
+  if (e.target.closest("a")) return; // 링크는 새 탭에서 열림
+  setBodyMode(true, viewOffsetAt(e.clientX, e.clientY));
+});
+$("#noteView").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.target.closest("a")) { e.preventDefault(); setBodyMode(true, $("#noteBody").value.length); }
+});
 
 // 글머리 기호: 줄 맨 앞에 "- " 또는 "* " 를 치면 "• " 로 바꿈
 const BULLET = "• ";
@@ -1795,7 +1856,7 @@ function continueBullet(e) {
 }
 // 한글은 마지막 글자를 '조합 중'인 상태가 있음. 그때 누른 Enter·Esc 는 글자를 확정하는 키라서 가로채면 마지막 글자가 사라짐
 const composing = (e) => e.isComposing || e.keyCode === 229;
-$("#noteTitle").addEventListener("keydown", (e) => { if (e.key === "Enter" && !composing(e)) { e.preventDefault(); $("#noteBody").focus(); } });
+$("#noteTitle").addEventListener("keydown", (e) => { if (e.key === "Enter" && !composing(e)) { e.preventDefault(); setBodyMode(true); $("#noteBody").focus(); } });
 ["#noteTitle", "#noteBody"].forEach((id) => {
   $(id).addEventListener("compositionstart", () => { S.composing = true; });
   $(id).addEventListener("compositionend", () => { S.composing = false; onEdit(); }); // 확정된 글자도 저장되게

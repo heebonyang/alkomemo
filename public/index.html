@@ -325,7 +325,10 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 .ed-inner { display: flex; flex-direction: column; min-height: 100%; padding-top: 32px; }
 #noteTitle { font-size: var(--fs-2xl); font-weight: 600; line-height: 1.35; letter-spacing: -0.02em; width: 100%; padding: 0; }
 #edMeta { padding: 6px 0 24px; }
-#noteBody { flex: 1; min-height: 55vh; resize: none; font-size: var(--fs-lg); line-height: 1.85; padding: 0; }
+#noteBody, .note-view { flex: 1; min-height: 55vh; resize: none; font-size: var(--fs-lg); line-height: 1.85; padding: 0; }
+/* 링크가 있는 노트는 본문을 안 쓰는 동안 '읽기 화면'으로: 링크를 누를 수 있음. 다른 곳을 누르면 그 자리에서 바로 편집 */
+.note-view { height: 0; overflow-y: auto; white-space: pre-wrap; overflow-wrap: break-word; cursor: text; outline: none; }
+.note-view a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; cursor: pointer; }
 
 /* ---------- 프로젝트 ---------- */
 .proj { display: grid; grid-template-columns: 20px 56px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 16px 0; border-bottom: 1px solid var(--line); }
@@ -558,6 +561,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
           <input id="noteTitle" type="text" placeholder="제목" aria-label="제목" autocomplete="off">
           <div class="meta" id="edMeta"></div>
           <textarea id="noteBody" placeholder="내용을 입력하세요" aria-label="내용"></textarea>
+          <div class="note-view" id="noteView" tabindex="0" role="textbox" aria-label="내용 (누르면 편집)" hidden></div>
         </div>
       </div>
     </section>
