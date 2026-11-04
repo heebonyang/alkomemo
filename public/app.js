@@ -1561,7 +1561,7 @@ function trashNotes(scope, ids) {
 function showToast(text, label, action) {
   const t = $("#toast");
   clearTimeout(t._timer);
-  t.replaceChildren(el("span", { text }), label ? el("button", { type: "button", text: label, onclick: () => { t.hidden = true; action(); } }) : null);
+  t.replaceChildren(...[el("span", { text }), label && el("button", { type: "button", text: label, onclick: () => { t.hidden = true; action(); } })].filter(Boolean));
   t.hidden = false;
   t._timer = setTimeout(() => { t.hidden = true; }, 5000);
 }
@@ -1600,6 +1600,22 @@ function placeNoteMenu() {
   menu.style.left = Math.max(16, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 16)) + "px";
 }
 
+// 열린 노트를 .txt 로 내려받기: 제목 + 빈 줄 + 본문 (아직 저장 전인 입력까지). 파일 이름은 제목
+function exportOpenNote() {
+  if (!S.open) return;
+  flushSave();
+  const title = ($("#noteTitle").value || "").trim() || autoTitleFrom($("#noteBody").value);
+  const body = $("#noteBody").value;
+  const text = (title ? title + "\n\n" : "") + body;
+  const name = (title || "제목 없음").replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "노트";
+  // 앞의 \uFEFF 는 윈도우 메모장 등에서 한글이 깨지지 않게 (UTF-8 표시)
+  const url = URL.createObjectURL(new Blob(["\uFEFF" + text.replace(/\n/g, "\r\n")], { type: "text/plain;charset=utf-8" }));
+  const a = el("a", { href: url, download: name + ".txt" });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  showToast(`‘${name}.txt’ 로 내보냈어요`);
+}
+
 // 노트 화면 오른쪽 위 ⋯ 메뉴: 다른 노트북으로 옮기기 · 삭제
 function toggleNoteMenu(force, page = "main") {
   const menu = $("#noteMenu"), btn = $("#moreBtn");
@@ -1622,6 +1638,7 @@ function toggleNoteMenu(force, page = "main") {
       onclick: (e) => { e.stopPropagation(); toggleNoteMenu(false); deleteOpen(); } }); // 휴지통으로 가고 '되돌리기'가 뜸
     menu.replaceChildren(
       item({ onclick: (e) => { e.stopPropagation(); toggleNoteMenu(true, "move"); } }, "다른 노트북으로 옮기기"),
+      item({ onclick: () => { toggleNoteMenu(false); exportOpenNote(); } }, "텍스트 파일로 내보내기"),
       el("div", { class: "menu-sep" }),
       del);
   }
