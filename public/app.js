@@ -719,7 +719,7 @@ function renderView() {
   const hasOpen = !panel && S.open && S.open.scope === S.tab;
   $("#spaceView").hidden = !panel;
   $("#editorView").hidden = !hasOpen;
-  const board = isSpace(S.tab) && S.board;
+  const board = projectsOn(S.tab) && S.board;
   $("#projView").hidden = panel || hasOpen || !board;
   $("#emptyView").hidden = panel || hasOpen || board;
   $("#newBtnEmpty").hidden = S.trashView || !S.tab; // 휴지통 화면 · 노트북이 없을 때는 새 노트 없음
@@ -764,7 +764,7 @@ function renderRail() {
   const all = sortNotes(S.notes[scope] || []);
   const q = S.q.trim().toLowerCase();
   const items = q ? all.filter((n) => ((n.title || "") + "\n" + (n.body || "")).toLowerCase().includes(q)) : all;
-  const entry = isSpace(scope) && !q && !S.select ? projectEntry() : null;
+  const entry = projectsOn(scope) && !q && !S.select ? projectEntry() : null;
   $("#selectBtn").hidden = !all.length;
   const count = all.filter((n) => !(S.draft && S.draft.id === n.id)).length; // 아직 저장 안 된 새 노트는 빼고
   $("#noteCount").textContent = count ? `노트 ${count}개` : "";
@@ -1095,9 +1095,16 @@ function buildPanel() {
       el("button", { type: "button", class: "btn danger-btn", text: "공유 끄기", onclick: () => { confirmRow.hidden = true; shareBox.checked = false; shareSecs.hidden = true; setShared(sp, false); } }));
     confirmRow.hidden = false;
   });
+  // 프로젝트 기능 켜고 끄기 (노트북마다, 함께 쓰는 멤버 모두에게 같이 적용). 꺼도 만든 프로젝트는 지우지 않음
+  const projBox = el("input", { type: "checkbox", id: "spProjects", checked: projectsOn(sp.id) });
+  projBox.addEventListener("change", () => setProjectsOn(sp.id, projBox.checked));
+  const projSec = el("div", { class: "panel-sec" },
+    el("label", { class: "check-row share-row" }, projBox, el("span", { text: "프로젝트" })),
+    el("p", { class: "fld-help", text: "켜면 목록 맨 위에 프로젝트(마감일 · D-day)가 보여요. 꺼도 만든 프로젝트는 지워지지 않아요." }));
   box.replaceChildren(
     el("div", { class: "panel" },
       nameForm,
+      projSec,
       shareSec,
       shareSecs,
       deleteSection(sp)));
@@ -1221,6 +1228,17 @@ async function sendInvites(sid, raw, nameOverride) {
     setMsg(todo.length ? `${todo.join(", ")} 님에게 초대장을 보냈어요.` + (skip.length ? ` (${skip.join(", ")}는 이미 멤버예요)` : "") : "이미 멤버인 사람이에요.", !todo.length);
     return true;
   } catch (e) { setMsg(errText(e, "초대 보내기에"), true); return false; }
+}
+
+// 프로젝트 기능: 노트북 문서의 projects 가 false 일 때만 꺼짐 (예전 노트북은 그대로 켜짐)
+const projectsOn = (sid) => isSpace(sid) && (spaceById(sid) || {}).projects !== false;
+function setProjectsOn(sid, on) {
+  const sp = spaceById(sid);
+  if (sp) sp.projects = on; // 바로 화면에 반영 (서버 확인은 구독으로 따라옴)
+  if (!on) S.board = false;
+  renderAll();
+  if (on) renderProjects();
+  updateDoc(spaceRef(sid), { projects: on, updatedAt: Date.now() }).catch((e) => setBanner(errText(e, "설정 저장에")));
 }
 
 async function renameSpace(sid, raw) {
