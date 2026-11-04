@@ -1095,12 +1095,12 @@ function buildPanel() {
       el("button", { type: "button", class: "btn danger-btn", text: "공유 끄기", onclick: () => { confirmRow.hidden = true; shareBox.checked = false; shareSecs.hidden = true; setShared(sp, false); } }));
     confirmRow.hidden = false;
   });
-  // 프로젝트 기능 켜고 끄기 (노트북마다, 함께 쓰는 멤버 모두에게 같이 적용). 꺼도 만든 프로젝트는 지우지 않음
+  // 프로젝트 보이기 · 숨기기 (노트북마다, 함께 쓰는 멤버 모두에게 같이 적용). 숨겨도 만든 프로젝트는 그대로 둠
   const projBox = el("input", { type: "checkbox", id: "spProjects", checked: projectsOn(sp.id) });
   projBox.addEventListener("change", () => setProjectsOn(sp.id, projBox.checked));
   const projSec = el("div", { class: "panel-sec" },
-    el("label", { class: "check-row share-row" }, projBox, el("span", { text: "프로젝트" })),
-    el("p", { class: "fld-help", text: "켜면 목록 맨 위에 프로젝트(마감일 · D-day)가 보여요. 꺼도 만든 프로젝트는 지워지지 않아요." }));
+    el("label", { class: "check-row share-row" }, projBox, el("span", { text: "프로젝트 보이기" })),
+    el("p", { class: "fld-help", text: "목록 맨 위에 프로젝트(마감일 · D-day)를 보여 줘요. 숨겨도 만든 프로젝트는 그대로 남아 있어서, 다시 보이게 하면 돌아와요." }));
   box.replaceChildren(
     el("div", { class: "panel" },
       nameForm,
@@ -1230,7 +1230,7 @@ async function sendInvites(sid, raw, nameOverride) {
   } catch (e) { setMsg(errText(e, "초대 보내기에"), true); return false; }
 }
 
-// 프로젝트 기능: 노트북 문서의 projects 가 false 일 때만 꺼짐 (예전 노트북은 그대로 켜짐)
+// 프로젝트 보이기: 노트북 문서의 projects 가 false 일 때만 숨김 (예전 노트북은 그대로 보임)
 const projectsOn = (sid) => isSpace(sid) && (spaceById(sid) || {}).projects !== false;
 function setProjectsOn(sid, on) {
   const sp = spaceById(sid);
