@@ -396,7 +396,7 @@ function onNotes(scope, list, snap) {
   if (!snap.metadata.fromCache && !S.purged[scope]) {
     S.purged[scope] = true;
     const old = S.trash[scope].filter((n) => Date.now() - n.deletedAt > TRASH_DAYS * 86400000);
-    old.forEach((n) => queue(() => deleteDoc(docIn(notesCol(scope), n.id)).catch(() => {})));
+    old.forEach((n) => { deleteImagesOf(scope, n); queue(() => deleteDoc(docIn(notesCol(scope), n.id)).catch(() => {})); });
   }
   S.loaded[scope] = true;
   if (S.open && S.open.scope === scope) {
@@ -690,7 +690,7 @@ async function removePrivate() {
   moveOffTab("private");
   savePrefs();
   try {
-    for (const n of [...(S.notes.private || []), ...(S.trash.private || [])]) await deleteDoc(docIn(notesCol("private"), n.id));
+    for (const n of [...(S.notes.private || []), ...(S.trash.private || [])]) { deleteImagesOf("private", n); await deleteDoc(docIn(notesCol("private"), n.id)); }
   } catch (e) { setBanner(errText(e, "노트 삭제에")); }
 }
 // 끄는 중 화면이 밀리지 않게 (터치)
@@ -782,7 +782,7 @@ function renderRail() {
     const on = !S.panel && S.open && S.open.scope === scope && S.open.id === n.id;
     const parts = [
       el("span", { class: "item-title" + (titleOf(n) ? "" : " untitled"), text: titleOf(n) || "제목 없음" }),
-      el("span", { class: "item-snip", text: snippetOf(n) }),
+      el("span", { class: "item-snip", text: [(n.images || []).length ? `사진 ${n.images.length}장` : "", snippetOf(n)].filter(Boolean).join(" · ") }),
     ];
     if (S.select) {
       const picked = S.select.has(n.id);
@@ -1314,7 +1314,7 @@ async function removeSpace(sp) {
     moveOffTab(sp.id);
     const sid = sp.id;
     const notes = [...(S.notes[sid] || []), ...(S.trash[sid] || [])], projects = [...(S.projects[sid] || [])], invites = [...(S.pending[sid] || [])];
-    for (const n of notes) await deleteDoc(docIn(notesCol(sid), n.id));
+    for (const n of notes) { deleteImagesOf(sid, n); await deleteDoc(docIn(notesCol(sid), n.id)); }
     for (const pj of projects) await deleteDoc(docIn(projectsCol(sid), pj.id));
     for (const inv of invites) await deleteDoc(docAt("invites", inv.id));
     for (const mid of Object.keys(S.memberInfo[sid] || {})) await deleteDoc(docAt("spaces", sid, "members", mid));
@@ -1350,6 +1350,7 @@ function fillEditor(scope, n) {
   $("#noteBody").value = n.body || "";
   setBodyMode(false);
   toggleNoteMenu(false);
+  renderImages(scope, n);
   renderMeta(scope, n);
 }
 
@@ -1366,6 +1367,7 @@ function syncEditor(n) {
   const title = n.title || (S.autoTitle ? autoTitleFrom(n.body) : "");
   if (t.value !== title) t.value = title;
   if (b.value !== (n.body || "")) { b.value = n.body || ""; if (document.activeElement !== b) setBodyMode(false); }
+  if ((n.images || []).join() !== $("#noteImages").dataset.ids) renderImages(S.open.scope, n); // 다른 사람이 사진을 더하거나 지웠을 때만
   renderMeta(S.open.scope, n);
 }
 
@@ -1408,7 +1410,7 @@ function flushSave() {
   const data = { ...currentTitle(), body: $("#noteBody").value, updatedAt: Date.now(), updatedBy: S.uid };
   const draft = S.draft && S.draft.id === id ? S.draft : null;
   if (draft) {
-    if (!data.title.trim() && !data.body.trim()) { setStatus(""); return S.chain; } // 아직 빈 노트: 저장 안 함
+    if (!data.title.trim() && !data.body.trim() && !(draft.note.images || []).length) { setStatus(""); return S.chain; } // 아직 빈 노트: 저장 안 함
     S.draft = null;
     const first = { ...draft.note, ...data };
     setStatus("저장 중…");
@@ -1416,6 +1418,7 @@ function flushSave() {
       try {
         await setDoc(ref, first);
         if (S.open && S.open.id === id && !S.dirty) setStatus("저장됨 · " + fmtClock.format(Date.now()));
+        saveLast(); // 처음 저장된 새 노트도 새로고침하면 다시 열리게
       } catch (e) {
         if (S.open && S.open.id === id) { S.dirty = true; S.draft = draft; }
         setStatus(errText(e, "노트 만들기에"));
@@ -1575,6 +1578,7 @@ function restoreNote(scope, id) {
     .catch((e) => setBanner(e && e.code === "not-found" ? "이 노트는 이미 완전히 지워져서 되살릴 수 없어요." : errText(e, "되살리기에"))));
 }
 function purgeNotes(scope, ids) {
+  (S.trash[scope] || []).filter((n) => ids.includes(n.id)).forEach((n) => deleteImagesOf(scope, n));
   S.trash[scope] = (S.trash[scope] || []).filter((n) => !ids.includes(n.id));
   renderRail();
   for (const id of ids) queue(() => deleteDoc(docIn(notesCol(scope), id)).catch((e) => setBanner(errText(e, "완전히 지우기에"))));
@@ -1638,6 +1642,7 @@ function toggleNoteMenu(force, page = "main") {
       onclick: (e) => { e.stopPropagation(); toggleNoteMenu(false); deleteOpen(); } }); // 휴지통으로 가고 '되돌리기'가 뜸
     menu.replaceChildren(
       item({ onclick: (e) => { e.stopPropagation(); toggleNoteMenu(true, "move"); } }, "다른 노트북으로 옮기기"),
+      item({ onclick: () => { toggleNoteMenu(false); $("#imgInput").click(); } }, "사진 첨부"),
       item({ onclick: () => { toggleNoteMenu(false); exportOpenNote(); } }, "텍스트 파일로 내보내기"),
       el("div", { class: "menu-sep" }),
       del);
@@ -1654,7 +1659,7 @@ async function moveOpen(target) {
   const n = (S.notes[scope] || []).find((x) => x.id === id) || {};
   const now = Date.now();
   const data = {
-    ...currentTitle(), body: $("#noteBody").value,
+    ...currentTitle(), body: $("#noteBody").value, images: n.images || [],
     createdBy: n.createdBy || S.uid, createdAt: n.createdAt || now, updatedBy: S.uid, updatedAt: now,
   };
   clearTimeout(S.saveTimer);
@@ -1673,6 +1678,11 @@ async function moveOpen(target) {
   $("#app").dataset.view = "detail";
   queue(async () => {
     try {
+      // 사진도 새 노트북으로 옮겨 적은 뒤 노트를 만듦
+      for (const iid of data.images) {
+        const d = await getDoc(docIn(imagesCol(scope, id), iid));
+        if (d.exists) await setDoc(docIn(imagesCol(target, to.id), iid), d.data);
+      }
       await setDoc(to, data);
     } catch (e) {
       // 새 노트북에 못 만들었으면 원래 노트는 그대로 둠
@@ -1682,10 +1692,122 @@ async function moveOpen(target) {
       switchTab(scope); openNote(scope, id);
       return;
     }
-    try { await deleteDoc(from); } catch (e) { setBanner(errText(e, "원래 노트 지우기에")); }
+    try { deleteImagesOf(scope, { id, images: data.images }); await deleteDoc(from); } catch (e) { setBanner(errText(e, "원래 노트 지우기에")); }
     if (S.open && S.open.id === to.id) setStatus(`${target === "private" ? "노트" : spaceName(target)} 노트북으로 옮김`);
   });
 }
+
+/* ---------- 사진 첨부 ----------
+   사진은 노트 아래 images 에 한 장씩 저장(…/notes/<노트>/images/<사진>, 규칙은 노트와 같음).
+   노트 문서에는 사진 id 순서만(images: [...]). 노트를 열 때만 불러와서 읽기 횟수를 아낌.
+   저장 공간을 아끼려고 긴 쪽 1600px · JPEG 로 줄여서 올림 (문서 하나 1MB 한도 안쪽) */
+const imagesCol = (scope, nid) => (scope === "private" ? collection("users", S.uid, "notes", nid, "images") : collection("spaces", scope, "notes", nid, "images"));
+const imgCache = new Map();
+const openNoteData = () => S.open && (S.notes[S.open.scope] || []).find((n) => n.id === S.open.id);
+
+async function shrinkImage(file) {
+  const bmp = await createImageBitmap(file);
+  for (const [side, q] of [[1600, 0.82], [1280, 0.7], [960, 0.6]]) {
+    const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); // 투명 배경은 흰색으로
+    g.drawImage(bmp, 0, 0, c.width, c.height);
+    const data = c.toDataURL("image/jpeg", q);
+    if (data.length < 900000) return { data, w: c.width, h: c.height };
+  }
+  throw Object.assign(new Error("too big"), { code: "too-big" });
+}
+
+async function addImages(files) {
+  const list = [...files].filter((f) => f.type.startsWith("image/"));
+  if (!list.length) return;
+  if (!S.open) { if (!S.tab || S.trashView) return; createNote(S.tab); }
+  const { scope, id } = S.open;
+  const n = openNoteData();
+  if (!n) return;
+  setStatus(`사진 올리는 중… (${list.length}장)`);
+  const added = [];
+  for (const f of list) {
+    try {
+      const img = await shrinkImage(f);
+      const ref = docIn(imagesCol(scope, id));
+      imgCache.set(ref.id, img.data);
+      await queue(() => setDoc(ref, { ...img, createdAt: Date.now(), createdBy: S.uid }));
+      added.push(ref.id);
+    } catch (e) { setBanner(e.code === "too-big" ? `‘${f.name}’ 는 너무 커서 올리지 못했어요.` : errText(e, "사진 올리기에")); }
+  }
+  if (!added.length) { setStatus(""); return; }
+  const images = [...(n.images || []), ...added];
+  n.images = images;
+  renderImages(scope, n);
+  if (S.draft && S.draft.id === id) { S.draft.note.images = images; S.dirty = true; flushSave(); }
+  else queue(() => updateDoc(docIn(notesCol(scope), id), { images, updatedAt: Date.now(), updatedBy: S.uid }).catch((e) => setBanner(errText(e, "사진 저장에"))));
+  setStatus("저장됨 · " + fmtClock.format(Date.now()));
+  renderRail();
+}
+
+function renderImages(scope, n) {
+  const box = $("#noteImages"), ids = (n && n.images) || [];
+  box.hidden = !ids.length;
+  box.dataset.ids = ids.join();
+  box.replaceChildren(...ids.map((iid) => {
+    const btn = el("button", { type: "button", class: "thumb" + (imgCache.has(iid) ? "" : " loading"), "aria-label": "사진 크게 보기", onclick: () => openLightbox(scope, n.id, iid) },
+      imgCache.has(iid) ? el("img", { src: imgCache.get(iid), alt: "" }) : "…");
+    if (!imgCache.has(iid)) getDoc(docIn(imagesCol(scope, n.id), iid)).then((d) => {
+      if (!d.exists) { btn.remove(); return; }
+      imgCache.set(iid, d.data.data);
+      btn.classList.remove("loading"); btn.replaceChildren(el("img", { src: d.data.data, alt: "" }));
+    }).catch(() => {});
+    return btn;
+  }));
+}
+
+function openLightbox(scope, nid, iid) {
+  const lb = $("#lightbox"), src = imgCache.get(iid);
+  if (!src) return;
+  $("#lbImg").src = src;
+  const n = (S.notes[scope] || []).find((x) => x.id === nid);
+  $("#lbDown").href = src; $("#lbDown").download = `${(n && titleOf(n)) || "사진"}-${(n.images || []).indexOf(iid) + 1}.jpg`.replace(/[\\/:*?"<>|]/g, " ");
+  const del = $("#lbDel");
+  disarm(del, "삭제");
+  del.onclick = () => arm(del, "한 번 더 누르면 삭제", () => { closeLightbox(); removeImage(scope, nid, iid); });
+  lb.hidden = false;
+}
+function closeLightbox() { $("#lightbox").hidden = true; $("#lbImg").src = ""; }
+function removeImage(scope, nid, iid) {
+  const n = (S.notes[scope] || []).find((x) => x.id === nid);
+  if (!n) return;
+  n.images = (n.images || []).filter((x) => x !== iid);
+  if (S.open && S.open.id === nid) renderImages(scope, n);
+  renderRail();
+  queue(() => updateDoc(docIn(notesCol(scope), nid), { images: n.images, updatedAt: Date.now(), updatedBy: S.uid }).catch((e) => setBanner(errText(e, "사진 삭제에"))));
+  queue(() => deleteDoc(docIn(imagesCol(scope, nid), iid)).catch(() => {}));
+  imgCache.delete(iid);
+}
+// 노트를 완전히 지울 때 그 노트의 사진도 함께 지움
+function deleteImagesOf(scope, n) {
+  for (const iid of (n && n.images) || []) { imgCache.delete(iid); queue(() => deleteDoc(docIn(imagesCol(scope, n.id), iid)).catch(() => {})); }
+}
+
+$("#lbClose").addEventListener("click", closeLightbox);
+$("#lightbox").addEventListener("click", (e) => { if (e.target.id === "lightbox" || e.target.id === "lbImg") closeLightbox(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#lightbox").hidden) closeLightbox(); });
+$("#imgInput").addEventListener("change", (e) => { addImages(e.target.files); e.target.value = ""; });
+// 데스크톱: 노트 칸에 사진 파일을 끌어다 놓기 (열린 노트가 없으면 새 노트를 만들어 붙임)
+for (const id of ["#editorView", "#emptyView"]) {
+  const v = $(id);
+  const hasFiles = (e) => [...(e.dataTransfer && e.dataTransfer.types) || []].includes("Files");
+  v.addEventListener("dragover", (e) => { if (!hasFiles(e) || !S.tab || S.trashView) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; v.classList.add("dropping"); });
+  v.addEventListener("dragleave", (e) => { if (!v.contains(e.relatedTarget)) v.classList.remove("dropping"); });
+  v.addEventListener("drop", (e) => { if (!hasFiles(e)) return; e.preventDefault(); v.classList.remove("dropping"); addImages(e.dataTransfer.files); });
+}
+// 붙여넣기(Ctrl+V)로도 사진 첨부
+for (const id of ["#noteTitle", "#noteBody"]) $(id).addEventListener("paste", (e) => {
+  const files = [...(e.clipboardData && e.clipboardData.files) || []].filter((f) => f.type.startsWith("image/"));
+  if (files.length) { e.preventDefault(); addImages(files); }
+});
 
 /* ---------- projects ---------- */
 const DAY = 86400000;
@@ -1929,7 +2051,7 @@ document.addEventListener("keydown", (e) => {
   if ((e.key !== "ArrowDown" && e.key !== "ArrowUp") || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
   if (!window.matchMedia("(min-width: 761px)").matches) return;
   if (e.target.closest("textarea, select, [contenteditable], input:not(#search), .menu, [role=separator]")) return;
-  if (!S.tab || S.trashView || S.select || S.panel || document.querySelector(".menu:not([hidden])")) return;
+  if (!S.tab || S.trashView || S.select || S.panel || document.querySelector(".menu:not([hidden])") || !$("#lightbox").hidden) return;
   const list = visibleNotes().filter((n) => !(S.draft && S.draft.id === n.id && !(S.open && S.open.id === n.id)));
   if (!list.length) return;
   e.preventDefault();
@@ -1945,7 +2067,7 @@ document.addEventListener("keydown", (e) => {
   if ((e.key !== "ArrowLeft" && e.key !== "ArrowRight") || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
   if (!window.matchMedia("(min-width: 761px)").matches) return;
   if (e.target.closest("textarea, select, [contenteditable], input, .menu, [role=separator]")) return;
-  if (!S.tab || S.select || document.querySelector(".menu:not([hidden])")) return;
+  if (!S.tab || S.select || document.querySelector(".menu:not([hidden])") || !$("#lightbox").hidden) return;
   const tabs = orderedTabs();
   const i = tabs.findIndex((t) => t.id === S.tab);
   const j = i + (e.key === "ArrowRight" ? 1 : -1);
