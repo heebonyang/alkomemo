@@ -57,7 +57,8 @@ function errText(e, what) {
 function setBanner(text) { const b = $("#banner"); b.textContent = text; b.hidden = !text; }
 function setStatus(text) { $("#status").textContent = text; }
 // 제목이 비어 있으면 본문 첫 줄을 제목으로 (앞의 # - * > 는 빼고 40자까지)
-const firstLines = (body) => (body || "").split("\n").map((l) => l.trim()).filter(Boolean);
+const isDivider = (l) => /^─{3,}$/.test(l.trim());
+const firstLines = (body) => (body || "").split("\n").map((l) => l.trim()).filter((l) => l && !isDivider(l));
 function autoTitleFrom(body) {
   const t = (firstLines(body)[0] || "").replace(/^[#>*•\-\s]+/, "").trim();
   return t.length > 40 ? t.slice(0, 40).trim() + "…" : t;
@@ -1951,12 +1952,17 @@ function findLinks(text) {
   return out;
 }
 // 읽기 화면 그리기: 글자는 그대로, 링크만 <a>
+function findDividers(text) {
+  return [...text.matchAll(/^─{3,}$/gm)].map((m) => ({ start: m.index, end: m.index + m[0].length, hr: true }));
+}
 function renderNoteView(text) {
   const kids = []; let at = 0;
-  for (const l of findLinks(text)) {
+  const parts = [...findLinks(text), ...findDividers(text)].sort((a, b) => a.start - b.start);
+  for (const l of parts) {
+    if (l.start < at) continue;
     if (l.start > at) kids.push(document.createTextNode(text.slice(at, l.start)));
-    const href = /^https?:/i.test(l.url) ? l.url : "https://" + l.url;
-    kids.push(el("a", { href, target: "_blank", rel: "noopener noreferrer", text: l.url }));
+    if (l.hr) kids.push(el("span", { class: "note-hr", "aria-hidden": "true", text: text.slice(l.start, l.end) })); // 글자는 투명, 가운데 선만 (높이는 한 줄 그대로)
+    else kids.push(el("a", { href: /^https?:/i.test(l.url) ? l.url : "https://" + l.url, target: "_blank", rel: "noopener noreferrer", text: l.url }));
     at = l.end;
   }
   kids.push(document.createTextNode(text.slice(at) + "\n")); // 마지막 빈 줄도 높이가 같게
@@ -1965,7 +1971,7 @@ function renderNoteView(text) {
 // edit=true: 쓰기(textarea), false: 링크가 있으면 읽기 화면, 없으면 그대로 쓰기 칸
 function setBodyMode(edit, caret) {
   const ta = $("#noteBody"), view = $("#noteView");
-  const useView = !edit && findLinks(ta.value).length > 0 && document.activeElement !== ta;
+  const useView = !edit && (findLinks(ta.value).length > 0 || findDividers(ta.value).length > 0) && document.activeElement !== ta;
   if (useView) {
     renderNoteView(ta.value);
     const top = ta.scrollTop;
@@ -2016,6 +2022,7 @@ function autoBullet(e) {
   if ((e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") && ta.selectionStart === ta.selectionEnd) {
     const caret = ta.selectionStart, prevStart = ta.value.lastIndexOf("\n", caret - 2) + 1;
     const prev = ta.value.slice(prevStart, caret - 1);
+    if (isDashLine(prev)) { replaceText(ta, prevStart, caret - 1, DIVIDER); ta.setSelectionRange(prevStart + DIVIDER.length + 1, prevStart + DIVIDER.length + 1); return; }
     if (!prev.startsWith(BULLET)) return;
     if (!prev.slice(BULLET.length).trim()) replaceText(ta, prevStart, caret, "");
     else replaceText(ta, caret, caret, BULLET);
@@ -2026,6 +2033,9 @@ function autoBullet(e) {
   if (head === "- " || head === "* ") replaceText(ta, start, ta.selectionStart, BULLET);
 }
 // 글머리 줄에서 Enter: 다음 줄도 "• " 로 시작. 내용 없는 글머리 줄에서 Enter 면 목록을 끝냄(기호만 지움)
+// 구분선: '-' 만 세 개 이상 쓴 줄에서 Enter → 그 줄을 '────' 로 (읽는 동안에는 가로줄로 보임)
+const DIVIDER = "─".repeat(20);
+const isDashLine = (l) => /^\s*-{3,}\s*$/.test(l);
 function continueBullet(e) {
   if (e.key !== "Enter" || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey || composing(e)) return;
   const ta = e.target;
@@ -2033,6 +2043,7 @@ function continueBullet(e) {
   const start = lineStart(ta);
   const end = ta.value.indexOf("\n", start) < 0 ? ta.value.length : ta.value.indexOf("\n", start);
   const line = ta.value.slice(start, end);
+  if (isDashLine(line) && ta.selectionStart === end) { e.preventDefault(); replaceText(ta, start, end, DIVIDER + "\n"); return; }
   if (!line.startsWith(BULLET)) return;
   e.preventDefault();
   if (!line.slice(BULLET.length).trim()) replaceText(ta, start, end, "");

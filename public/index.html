@@ -329,6 +329,7 @@ main .col { max-width: var(--col-w, 720px); margin: 0; padding-right: 24px; }
 /* 링크가 있는 노트는 본문을 안 쓰는 동안 '읽기 화면'으로: 링크를 누를 수 있음. 다른 곳을 누르면 그 자리에서 바로 편집 */
 .note-view { height: 0; overflow-y: auto; white-space: pre-wrap; overflow-wrap: break-word; cursor: text; outline: none; }
 .note-view a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; cursor: pointer; }
+.note-view .note-hr { display: inline-block; width: 100%; vertical-align: top; color: transparent; overflow: hidden; white-space: nowrap; background: linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat; user-select: none; }
 /* 첨부 사진: 제목 아래 작은 사진들, 누르면 크게 */
 .note-images { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 20px; }
 .note-images .thumb { width: 96px; height: 96px; border-radius: 8px; overflow: hidden; background: var(--faint); flex: none; padding: 0; }
